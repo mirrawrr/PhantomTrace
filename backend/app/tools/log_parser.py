@@ -104,7 +104,7 @@ def parse_security_logs(raw_logs: str) -> dict[str, Any]:
         seen_ids.add(event_id)
 
     events.sort(
-        key=lambda event: event["timestamp"]
+        key=lambda event: datetime.fromisoformat(event["timestamp"])
     )
 
     return {

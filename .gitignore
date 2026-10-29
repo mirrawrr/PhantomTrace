@@ -152,6 +152,7 @@ activemq-data/
 # Environments
 .env
 node_modules/
+.vite/
 .npm-cache/
 .env.*
 !.env.example

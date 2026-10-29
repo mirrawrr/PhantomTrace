@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 def correlate_events(events: list) -> dict:
     ordered = sorted(
         events,
-        key=lambda e: e["timestamp"]
+        key=lambda e: datetime.fromisoformat(e["timestamp"])
     )
 
     users = Counter()

@@ -4,12 +4,26 @@ import { investigate, filterEvents, utcTime } from '../src/api.mjs';
 
 const completed = {status:'completed', report:{summary:'Review',findings:[],recommendations:[],limitations:[]},events:[],tool_history:[],verification:{results:[]}};
 
+test('keeps supplied changes separate from logs and preserves fixed mode', async () => {
+  const changes = [{change_id:'CHG-1'}];
+  await investigate('event', {changes, fetcher:async (url,options) => {
+    assert.equal(url,'/api/investigate/adaptive');
+    assert.deepEqual(JSON.parse(options.body),{logs:'event',changes});
+    return {ok:true,json:async()=>completed};
+  }});
+  await investigate('event', {mode:'fixed',changes,fetcher:async (url,options) => {
+    assert.equal(url,'/api/investigate/agent');
+    assert.deepEqual(JSON.parse(options.body),{logs:'event'});
+    return {ok:true,json:async()=>completed};
+  }});
+});
+
 test('posts logs and passes cancellation signal through to backend', async () => {
   const signal = new AbortController().signal;
   const result = await investigate('event', {signal, fetcher: async (url, options) => {
-    assert.equal(url, '/api/investigate/agent');
+    assert.equal(url, '/api/investigate/adaptive');
     assert.equal(options.method, 'POST');
-    assert.deepEqual(JSON.parse(options.body), {logs:'event'});
+    assert.deepEqual(JSON.parse(options.body), {logs:'event', changes:[]});
     assert.equal(options.signal, signal);
     return {ok:true,json:async()=>completed};
   }});
