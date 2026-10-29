@@ -57,6 +57,15 @@ does not validate every sentence in a finding. Human review remains necessary.
 The dashboard states these limits and shows alternate explanations, next checks,
 fact details and a draft analyst handoff.
 
+Source-backed observations are rendered by the server from original cited events,
+not copied from model prose. Permission records label `user` as actor and `target`
+as the affected subject; a role field alone does not prove grant versus revocation.
+Only submitted, successfully checked sequences generate relative-time observations
+with both event IDs. Free-text model assessment is shown separately and may still
+contain unsupported claims. Executive summary, alternatives, next checks and
+handoff remain model-generated and require review. Empty sequences mean no
+cross-event timing relationship was submitted for that finding.
+
 ## Evaluation
 
 Five public synthetic fixtures in `frontend/src/scenarios.json` cover mixed

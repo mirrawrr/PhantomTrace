@@ -131,6 +131,26 @@ class TestAdaptiveWorkspace(unittest.TestCase):
         ws=EvidenceWorkspace(AdaptiveRequest(logs=logs))
         self.assertEqual(correlate_events(ws.events)['finding_count'],1)
 
+    def test_source_observations_distinguish_actor_target_and_unchecked_prose(self):
+        ws = EvidenceWorkspace(request('mixed'))
+        item = finding('EVT005')
+        item['description'] = 'Incorrect assessment: admin received the role five seconds after a login.'
+        checked = ws.source_observations(AdaptiveReport.model_validate(report(item)).findings[0])
+        self.assertIn('actor (user)="admin"',checked[0]['text'])
+        self.assertIn('target="backup_service"',checked[0]['text'])
+        self.assertNotIn('received',checked[0]['text'])
+        self.assertNotIn('seconds',checked[0]['text'])
+
+    def test_checked_timing_observation_references_both_events(self):
+        ws = EvidenceWorkspace(request('mixed'))
+        item = finding('EVT005')
+        item['event_ids'].append('EVT006')
+        item['facts'].append({'event_id':'EVT006','field':'event_type','value':'FILE_READ'})
+        item['sequences']=[{'earlier_id':'EVT005','later_id':'EVT006','max_seconds':10}]
+        checked=ws.source_observations(AdaptiveReport.model_validate(report(item)).findings[0])
+        self.assertEqual(checked[-1]['event_ids'],['EVT005','EVT006'])
+        self.assertEqual(checked[-1]['text'],'EVT005 occurred 5 seconds before EVT006.')
+
 
 class TestAdaptiveLoop(unittest.TestCase):
     def test_different_tool_paths_and_dispositions_supported(self):
@@ -149,6 +169,9 @@ class TestAdaptiveLoop(unittest.TestCase):
         self.assertEqual(second['report']['findings'][0]['disposition'],'unresolved')
         self.assertTrue(first['claim_verification']['all_valid'])
         self.assertEqual(first['tool_history'][1]['purpose'],'Does this match maintenance?')
+        observation=first['report']['findings'][0]['source_observations'][0]
+        self.assertEqual(observation['event_ids'],['BEN002'])
+        self.assertIn('target="backup"',observation['text'])
 
     def test_failed_claim_can_be_repaired_but_never_returned_as_valid(self):
         invalid = report(finding('AMB001'))

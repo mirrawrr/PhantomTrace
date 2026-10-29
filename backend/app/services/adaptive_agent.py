@@ -229,6 +229,29 @@ class EvidenceWorkspace:
             result = self.check(args.facts, args.sequences)
         return args, result
 
+    def source_observations(self, finding: AdaptiveFinding):
+        """Render evidence values without promoting model prose to checked fact."""
+        observations = []
+        for eid in finding.event_ids:
+            event = self.by_id[eid]
+            fields = event['fields']
+            if event['event_type'] == 'PERMISSION_CHANGE':
+                values = [('actor (user)', event['user']), ('target', fields.get('target')),
+                          ('role', fields.get('role'))]
+            else:
+                values = [('user', event['user']), ('ip', event['ip'])]
+            values.extend((key, fields[key]) for key in ('operation', 'file', 'destination', 'bytes') if key in fields)
+            details = '; '.join(f'{key}={json.dumps(value, ensure_ascii=False)}'
+                                for key, value in values if value is not None)
+            observations.append({'event_ids': [eid], 'text':
+                f'{eid} records {event["event_type"]} at {event["timestamp"]}: {details}.'})
+        for sequence in finding.sequences:
+            seconds = (instant(self.by_id[sequence.later_id]['timestamp']) -
+                       instant(self.by_id[sequence.earlier_id]['timestamp'])).total_seconds()
+            observations.append({'event_ids': [sequence.earlier_id, sequence.later_id],
+                'text': f'{sequence.earlier_id} occurred {seconds:g} seconds before {sequence.later_id}.'})
+        return observations
+
     def validate_report(self, report: AdaptiveReport):
         checks = []
         for finding in report.findings:
@@ -282,6 +305,15 @@ every triage lead; do not silently omit inconvenient evidence. Report with no
 findings only when there are no supported leads. Include at least one fact for
 EVERY event_id cited in a finding. Facts contain exact observed field values, not
 inferences. Sequences may assert strictly earlier events within max_seconds.
+For EVERY cross-event timing claim (including phrases such as "after the grant"
+or "five seconds later"), cite BOTH events in that finding and supply a sequence.
+Do not imply an unsubmitted timing relationship has passed structured checks.
+For PERMISSION_CHANGE, user is the actor and target is the affected subject.
+Do not describe the actor as receiving the target's role. PERMISSION_CHANGE and
+role alone do not establish whether a grant or revocation occurred; inspect an
+operation field if one exists, otherwise describe it as a recorded role change.
+Next checks and handoff must distinguish the actor's identity from the target's
+role assignment. Do not recommend automatic revocation without owner review.
 Findings have disposition review, unresolved, or explained_by_record. An explained
 finding cites exactly ONE permission event and matching change_ids returned by
 lookup_change. A matching supplied record is NOT authenticated authorization.
@@ -334,8 +366,11 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                 inputs = [{"role": "user", "content": "Report rejected by evidence checks: " + final_error +
                            ". Inspect missing evidence or repair the report. Return the complete JSON report."}]
                 continue
+            rendered_report = report.model_dump()
+            for raw, finding in zip(rendered_report['findings'], report.findings):
+                raw['source_observations'] = workspace.source_observations(finding)
             return {"status": "completed", "mode": "adaptive", "model": kwargs["model"],
-                    "report": report.model_dump(), "events": workspace.events,
+                    "report": rendered_report, "events": workspace.events,
                     "correlation": correlation,
                     "verification": verify_evidence(workspace.events, [f.model_dump() for f in report.findings]),
                     "claim_verification": claim_check, "tool_history": history,

@@ -1,12 +1,17 @@
 import React from 'react';
 
+export function FindingObservation({ finding }) {
+  if (!finding.source_observations) return <p>{finding.description}</p>;
+  return <div className="source-observations"><p className="eyebrow">SOURCE-BACKED OBSERVATIONS</p><ul>{finding.source_observations.map((item,index) => <li key={index}>{item.text}</li>)}</ul><details><summary>Model assessment · requires human review</summary><p>{finding.description}</p></details></div>;
+}
+
 export function AdaptiveFindingDetails({ finding }) {
   if (!finding.disposition) return null;
   return <div className="adaptive-details">
     <p className={`disposition disposition-${finding.disposition}`}>{finding.disposition === 'explained_by_record' ? 'Explained by supplied record · not independently authenticated' : finding.disposition === 'unresolved' ? 'Unresolved · more evidence needed' : 'Requires analyst review'}</p>
     <dl><dt>Another explanation</dt><dd>{finding.alternative_explanation}</dd><dt>Next evidence to collect</dt><dd>{finding.next_check}</dd></dl>
     {!!finding.change_ids?.length && <p className="muted">Matching supplied records: {finding.change_ids.join(', ')}</p>}
-    <details className="fact-details"><summary>Inspect checked facts and timing</summary><ul>{finding.facts.map((fact,index) => <li key={index}><code>{fact.event_id}</code> · {fact.field} = <code>{fact.value}</code></li>)}{finding.sequences.map((sequence,index) => <li key={`sequence-${index}`}><code>{sequence.earlier_id}</code> precedes <code>{sequence.later_id}</code> within {sequence.max_seconds}s</li>)}</ul></details>
+    <details className="fact-details"><summary>Inspect checked facts and timing</summary><ul>{finding.facts.map((fact,index) => <li key={index}><code>{fact.event_id}</code> · {fact.field} = <code>{fact.value}</code></li>)}{finding.sequences.map((sequence,index) => <li key={`sequence-${index}`}><code>{sequence.earlier_id}</code> precedes <code>{sequence.later_id}</code> within {sequence.max_seconds}s</li>)}</ul>{finding.sequences.length === 0 && <p>No cross-event timing relationship was supplied for checking in this finding.</p>}</details>
   </div>;
 }
 
