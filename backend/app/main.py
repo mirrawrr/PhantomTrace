@@ -7,11 +7,12 @@ from app.tools.event_correlator import correlate_events
 from app.tools.evidence_verifier import verify_evidence
 
 from app.services.meta_ai import investigate_with_ai
+from app.services.investigation_agent import investigate_agent, InvalidLogs
 
 app = FastAPI(
     title="PhantomTrace API",
     description="AI-powered digital forensics investigation agent",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 class InvestigationRequest(BaseModel):
@@ -72,3 +73,13 @@ def analyze_evidence(request: InvestigationRequest):
         "correlation": correlation,
         "verification": verification,
     }
+
+
+@app.post("/api/investigate/agent")
+def agent_investigate(request: InvestigationRequest):
+    try:
+        return investigate_agent(request.logs)
+    except InvalidLogs as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
+    except (OpenAIError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail="Agent investigation failed. Check Meta API configuration or retry.") from exc
