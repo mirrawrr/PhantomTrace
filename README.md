@@ -9,7 +9,7 @@ PhantomTrace is an AI-powered digital forensics investigation agent that analyse
 | 2 | Log parser, event correlation, evidence reference verifier | Complete |
 | 3 | Bounded Muse Spark tool-calling investigation and execution history | Complete; original workflow live-tested |
 | 4 | React dashboard, findings, tool activity and interactive timeline | Complete; original workflow live-tested |
-| 5 | Integration testing, deployment and three-minute demo | Planned |
+| 5 | Integration testing, deployment and three-minute demo | Deployment package prepared; hosting and video pending |
 
 ## Run Phase 3
 
@@ -109,3 +109,17 @@ fixed pipeline remains selectable. See [the adaptive investigation guide](docs/A
 for tools, evidence-check limits, five synthetic practice cases and the opt-in live
 evaluation. No winning outcome, real-world accuracy or learning improvement has
 been established. Deployment remains pending.
+
+## Hosted demo and submission preparation
+
+The deployment package serves the React build and FastAPI on one origin behind
+a private demo login. A multi-stage Dockerfile and optional Render Free blueprint
+are included. No service is provisioned merely by adding these files. See
+[deployment instructions](docs/DEPLOYMENT.md) and the
+[three-minute demo guide](docs/DEMO_SCRIPT.md). Keep the Meta key in runtime secrets,
+not the frontend or image. `/health` checks liveness without calling Meta.
+
+User-reported synthetic development checks completed eight of nine investigations,
+retaining one unexplained failure; details and limits are in
+[live checks](docs/LIVE_CHECKS.md). These counts are not a real-world accuracy or
+learning-effectiveness benchmark.

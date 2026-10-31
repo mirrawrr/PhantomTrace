@@ -1,0 +1,37 @@
+name: Deployment image smoke test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build dashboard and Python image
+        run: docker build -t phantomtrace-smoke .
+      - name: Verify login, static assets and deterministic API without Meta calls
+        env:
+          # CI-only fixture credentials, never deployment credentials.
+          DEMO_USERNAME: ci-demo
+          DEMO_PASSWORD: ci-only-fixture-password-not-live
+        run: |
+          docker run -d --name phantomtrace-smoke -p 127.0.0.1:18080:8000 -e DEMO_USERNAME -e DEMO_PASSWORD -e MODEL_API_KEY=ci-fixture-not-a-live-key phantomtrace-smoke
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:18080/health > /dev/null; then break; fi
+            sleep 2
+          done
+          python scripts/smoke_deployment.py http://127.0.0.1:18080
+          test "$(docker exec phantomtrace-smoke id -u)" != "0"
+          docker exec phantomtrace-smoke python -c "from pathlib import Path; assert not list(Path('/app').rglob('.env*'))"
+      - name: Container startup logs on failure
+        if: failure()
+        run: docker logs phantomtrace-smoke || true
+      - name: Stop test container
+        if: always()
+        run: docker rm -f phantomtrace-smoke || true

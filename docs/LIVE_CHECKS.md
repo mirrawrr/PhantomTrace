@@ -48,3 +48,20 @@ This prompted safe failure categories, single-case selection, explicit repetitio
 and failure-inclusive summaries. No timeout/budget increase or verdict change is
 justified without diagnostic evidence. Preserve the original failure even if a
 later rerun succeeds.
+
+## Follow-up user-reported ambiguous-case runs
+
+After safe diagnostics were added, the ambiguous case completed on one rerun:
+48.298 seconds, three tool calls, four model turns and zero report repairs. Three
+explicit repetitions then completed in 53.412, 29.487 and 36.755 seconds with zero
+repairs, all structured checks valid, and no unexpected explained findings.
+Two used inspect/verify; one also queried evidence. The reruns did not reproduce
+or explain the original failure.
+
+Across these development runs, eight of nine investigations completed; successful
+outputs matched 11 of 12 expected target instances when the original failed case
+is counted as unmatched. Repeating one public case weights these totals toward
+that case. Runs span development revisions, are not independent held-out tests,
+and do not establish general reliability, learning outcomes or agent superiority.
+Retain the original three local evaluation JSON files. They have not been silently
+overwritten, deleted or added to a deployment image.
