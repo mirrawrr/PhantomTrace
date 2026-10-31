@@ -1,0 +1,17 @@
+# Allow only source/build inputs; local keys, reports, Git and dependencies stay out.
+**
+!Dockerfile
+!backend/
+!backend/requirements.txt
+!backend/app/
+!backend/app/**
+!frontend/
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/vite.config.js
+!frontend/src/
+!frontend/src/**
+**/__pycache__/
+**/*.pyc
+**/.env*
