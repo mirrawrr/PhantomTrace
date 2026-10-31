@@ -1,8 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { investigate, filterEvents, utcTime } from '../src/api.mjs';
 
 const completed = {status:'completed', report:{summary:'Review',findings:[],recommendations:[],limitations:[]},events:[],tool_history:[],verification:{results:[]}};
+
+test('witness data and credentials go only to the live request', async () => {
+  await investigate('event', {witnessStatement:'I changed the role.', authorization:'Basic test-fixture',fetcher:async(url,options)=>{
+    assert.equal(options.headers.Authorization,'Basic test-fixture');
+    assert.equal(JSON.parse(options.body).witness_statement,'I changed the role.');
+    return {ok:true,json:async()=>completed};
+  }});
+  for (const status of [401,429]) {
+    await assert.rejects(investigate('event',{fetcher:async()=>({ok:false,status,json:async()=>({detail:'secret-provider-detail'})})}), /credentials|allowance/);
+  }
+});
+
+test('recorded fallback retains real source entries and explicit provenance',async()=>{
+  const recording=JSON.parse(await readFile(new URL('../src/recorded-run.json',import.meta.url),'utf8'));
+  assert.equal(recording.status,'completed');
+  assert.equal(recording.events.length,5);
+  assert.equal(recording.tool_history.length,3);
+  assert.match(recording.replay.notice,/older fixed-pipeline/);
+  assert.ok(recording.events.every(e=>e.raw.includes(e.event_id)));
+});
 
 test('keeps supplied changes separate from logs and preserves fixed mode', async () => {
   const changes = [{change_id:'CHG-1'}];

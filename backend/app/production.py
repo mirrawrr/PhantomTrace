@@ -14,13 +14,15 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
 from app.main import app as api_app
+from app.demo_limits import DemoLimits, configured_limits
 
 
 class DemoAccess:
-    def __init__(self, app, username, password):
+    def __init__(self, app, username, password, public_ui=False):
         self.app = app
         self.username = username.encode('utf-8')
         self.password = password.encode('utf-8')
+        self.public_ui = public_ui
 
     def authorized(self, scope):
         header = dict(scope.get('headers', [])).get(b'authorization', b'')
@@ -55,7 +57,9 @@ class DemoAccess:
             await send(message)
 
         health_probe = scope['path'] == '/health' and scope['method'] in {'GET', 'HEAD'}
-        if not health_probe and not self.authorized(scope):
+        public_page = self.public_ui and scope['method'] in {'GET', 'HEAD'} and (
+            scope['path'] == '/' or scope['path'].startswith('/assets/'))
+        if not health_probe and not public_page and not self.authorized(scope):
             response = JSONResponse({'detail': 'Demo login required.'}, status_code=401,
                                     headers={'WWW-Authenticate': 'Basic realm="PhantomTrace demo", charset="UTF-8"'})
             await response(scope, receive, private_send)
@@ -64,6 +68,7 @@ class DemoAccess:
 
 
 def create_app(static_dir=None):
+    os.environ['DEMO_ENFORCE_BUDGET'] = 'true'
     username, password = os.getenv('DEMO_USERNAME', ''), os.getenv('DEMO_PASSWORD', '')
     if not username.strip() or ':' in username or any(c in username for c in '\r\n'):
         raise RuntimeError('Set a valid DEMO_USERNAME for the hosted demo.')
@@ -90,5 +95,7 @@ def create_app(static_dir=None):
 
     app.mount('/assets', StaticFiles(directory=directory / 'assets'), name='assets')
     app.mount('/', api_app)
-    app.add_middleware(DemoAccess, username=username, password=password)
+    app.add_middleware(DemoLimits, **configured_limits())
+    app.add_middleware(DemoAccess, username=username, password=password,
+                       public_ui=os.getenv('DEMO_PUBLIC_UI', 'false').lower() == 'true')
     return app

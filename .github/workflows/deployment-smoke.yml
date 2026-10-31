@@ -21,7 +21,7 @@ jobs:
           DEMO_USERNAME: ci-demo
           DEMO_PASSWORD: ci-only-fixture-password-not-live
         run: |
-          docker run -d --name phantomtrace-smoke -p 127.0.0.1:18080:8000 -e DEMO_USERNAME -e DEMO_PASSWORD -e MODEL_API_KEY=ci-fixture-not-a-live-key phantomtrace-smoke
+          docker run -d --name phantomtrace-smoke -p 127.0.0.1:18080:8000 -e DEMO_PUBLIC_UI=true -e DEMO_USERNAME -e DEMO_PASSWORD -e MODEL_API_KEY=ci-fixture-not-a-live-key phantomtrace-smoke
           for attempt in $(seq 1 45); do
             if curl --fail --silent http://127.0.0.1:18080/health > /dev/null; then break; fi
             sleep 2

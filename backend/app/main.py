@@ -1,5 +1,6 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+import httpx
 from pydantic import BaseModel, Field
 from openai import OpenAIError
 from app.tools.log_parser import parse_security_logs
@@ -89,8 +90,33 @@ def agent_investigate(request: InvestigationRequest):
 @app.post("/api/investigate/adaptive")
 def adaptive_investigate(request: AdaptiveRequest):
     try:
-        return investigate_adaptive(request)
+        result = investigate_adaptive(request)
+        if request.witness_statement.strip():
+            from app.services.testimony import check_testimony
+            from app.services.adaptive_agent import EvidenceWorkspace
+            try:
+                result['testimony'] = check_testimony(request.witness_statement, EvidenceWorkspace(request))
+            except (OpenAIError, RuntimeError, ValueError):
+                result['testimony_error'] = 'Witness claim check did not finish. The log investigation is available; testimony remains unverified.'
+        return result
     except InvalidLogs as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
-    except (OpenAIError, RuntimeError) as exc:
+    except (OpenAIError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Adaptive investigation failed. Check configuration or retry.") from exc
+
+
+@app.post('/api/testimony/transcribe')
+async def transcribe_testimony(request: Request):
+    from app.services.testimony import transcribe_audio
+    from starlette.concurrency import run_in_threadpool
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 3_000_000:
+            raise HTTPException(status_code=413, detail='Voice note must be at most 60 seconds.')
+    try:
+        return await run_in_threadpool(transcribe_audio, bytes(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (httpx.HTTPError, RuntimeError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail='Voice transcription unavailable. Enter the statement as text instead.') from exc

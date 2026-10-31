@@ -10,16 +10,18 @@ export function validateLogs(logs) {
   if (logs.length > MAX_LOG_LENGTH) throw new Error('Logs must contain 20,000 characters or fewer.');
 }
 
-export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [] } = {}) {
+export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [], witnessStatement = '', authorization = '' } = {}) {
   validateLogs(logs);
   const response = await fetcher(mode === 'adaptive' ? '/api/investigate/adaptive' : '/api/investigate/agent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mode === 'adaptive' ? { logs, changes } : { logs }), signal,
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+    body: JSON.stringify(mode === 'adaptive' ? { logs, changes, ...(witnessStatement.trim() ? { witness_statement: witnessStatement } : {}) } : { logs }), signal,
   });
   let data;
   try { data = await response.json(); }
   catch { throw new Error('The backend returned an unreadable response. Check that FastAPI is running.'); }
   if (!response.ok) {
+    if (response.status === 401) throw new Error('Live investigation requires demo credentials. Enter the testing credentials or use recorded replay.');
+    if (response.status === 429) throw new Error('Live demo allowance reached. Use recorded replay or return later.');
     if (response.status === 422) {
       const errors = data.detail?.errors;
       throw new Error(Array.isArray(errors) ? errors.join('\n') : 'The backend rejected these logs. Check the event format and timestamps.');

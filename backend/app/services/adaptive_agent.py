@@ -50,6 +50,7 @@ class ChangeRecord(StrictModel):
 class AdaptiveRequest(StrictModel):
     logs: str = Field(min_length=1, max_length=20000)
     changes: list[ChangeRecord] = Field(default_factory=list, max_length=30)
+    witness_statement: str = Field(default='', max_length=4000)
 
     @model_validator(mode="after")
     def unique_changes(self):
