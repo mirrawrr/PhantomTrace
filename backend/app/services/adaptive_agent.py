@@ -11,6 +11,7 @@ from time import monotonic
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from openai import APITimeoutError, APIConnectionError, APIStatusError, OpenAIError
 
 from app.services.investigation_agent import InvalidLogs
 from app.services.meta_ai import get_meta_client
@@ -324,6 +325,28 @@ Return ONLY JSON matching this schema:
 """
 
 
+class AdaptiveFailure(RuntimeError):
+    """Allowlisted diagnostics only; no raw provider errors or evidence."""
+    def __init__(self, code, diagnostics):
+        self.code = code
+        self.diagnostics = diagnostics
+        super().__init__(f"Adaptive investigation failed ({code}); turn budget or provider check.")
+
+
+def provider_failure_code(exc):
+    if isinstance(exc, APITimeoutError):
+        return 'provider_timeout'
+    if isinstance(exc, APIConnectionError):
+        return 'provider_connection'
+    if isinstance(exc, APIStatusError):
+        if exc.status_code == 429:
+            return 'provider_rate_limit'
+        if exc.status_code in {401, 403}:
+            return 'provider_authentication'
+        return 'provider_http_error'
+    return 'provider_error'
+
+
 def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10):
     workspace = EvidenceWorkspace(request)
     client = client if client is not None else get_meta_client()
@@ -334,17 +357,37 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                 "change_record_count": len(request.changes)}
     inputs = [{"role": "user", "content": "Investigate this evidence workspace: " + json.dumps(overview)}]
     instructions = INSTRUCTIONS + json.dumps(AdaptiveReport.model_json_schema())
-    history, previous_id, final_error = [], None, None
+    history, previous_id = [], None
+    rejections, validation_issues = [], []
     start = monotonic()
+
+    def fail(code, turn):
+        return AdaptiveFailure(code, {
+            'elapsed_seconds': round(monotonic() - start, 3),
+            'model_turns': turn, 'tool_calls': len(history),
+            'tool_path': [entry['tool'] if entry['tool'] in TOOL_MODELS else 'unknown_tool' for entry in history],
+            'tool_errors': sum('error' in entry['result'] for entry in history),
+            'report_rejections': list(rejections),
+            'validation_issues': list(validation_issues),
+        })
+
     tokens = {"input_tokens": 0, "output_tokens": 0}
-    for _ in range(max_turns):
+    for turn in range(1, max_turns + 1):
         kwargs = {"model": os.getenv("META_MODEL", "muse-spark-1.3"),
                   "instructions": instructions, "input": inputs, "tools": TOOLS,
                   "max_output_tokens": 6500}
         if previous_id:
             kwargs["previous_response_id"] = previous_id
-        response = client.responses.create(**kwargs)
+        try:
+            response = client.responses.create(**kwargs)
+        except OpenAIError as exc:
+            raise fail(provider_failure_code(exc), turn) from exc
         previous_id = response.id
+        status = getattr(response, 'status', None)
+        if status in {'incomplete', 'failed', 'cancelled'}:
+            reason = getattr(getattr(response, 'incomplete_details', None), 'reason', None)
+            code = 'model_output_limit' if reason == 'max_output_tokens' else 'model_response_incomplete'
+            raise fail(code, turn)
         usage = getattr(response, "usage", None)
         for key in tokens:
             value = getattr(usage, key, None)
@@ -362,6 +405,22 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
             except (ValueError, ValidationError) as exc:
                 # Give the agent a bounded chance to correct an invalid report.
                 # The validation message contains no provider secrets.
+                if isinstance(exc, ValidationError):
+                    rejections.append('report_schema_invalid')
+                    allowed_fields = {'summary','findings','type','description','disposition',
+                        'event_ids','facts','sequences','alternative_explanation','next_check',
+                        'change_ids','event_id','field','value','earlier_id','later_id',
+                        'max_seconds','recommendations','limitations','handoff','situation',
+                        'evidence_scope','next_actions','open_questions'}
+                    for issue in exc.errors(include_input=False, include_context=False)[:10]:
+                        location = '.'.join('#' if isinstance(part, int) else
+                            part if part in allowed_fields else 'other' for part in issue['loc'])
+                        validation_issues.append({'field': location, 'type': issue['type']})
+                    validation_issues = validation_issues[-20:]
+                elif not workspace.inspected:
+                    rejections.append('source_not_inspected')
+                else:
+                    rejections.append('evidence_validation_failed')
                 final_error = str(exc)[:1500]
                 inputs = [{"role": "user", "content": "Report rejected by evidence checks: " + final_error +
                            ". Inspect missing evidence or repair the report. Return the complete JSON report."}]
@@ -375,9 +434,10 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                     "verification": verify_evidence(workspace.events, [f.model_dump() for f in report.findings]),
                     "claim_verification": claim_check, "tool_history": history,
                     "metrics": {"elapsed_seconds": round(monotonic() - start, 3),
-                                "tool_calls": len(history), **tokens}}
+                                "tool_calls": len(history), "model_turns": turn,
+                                "report_repairs": len(rejections), **tokens}}
         if len(calls) > 4 or len(history) + len(calls) > 24:
-            raise RuntimeError("Adaptive agent exceeded its tool-call budget.")
+            raise fail('tool_budget_exceeded', turn)
         inputs = []
         for call in calls:
             purpose = "Invalid tool request"
@@ -391,4 +451,4 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                             "purpose": purpose, "result": result})
             inputs.append({"type": "function_call_output", "call_id": call.call_id,
                            "output": json.dumps(result)})
-    raise RuntimeError("Adaptive investigation exceeded its turn budget.")
+    raise fail('turn_budget_exceeded', max_turns)

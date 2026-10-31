@@ -110,3 +110,28 @@ or prompt-injection resistance. Live adversarial evaluation remains necessary.
 7. Review the handoff, export JSON, and run the live evaluation.
 
 No live-model benchmark or learning-outcome improvement is claimed by this change.
+
+### Diagnose one case
+
+```powershell
+.\backend\.venv\Scripts\python.exe scripts/evaluate_adaptive.py --live --case ambiguous
+```
+
+Use a different output file from the original evaluation. Add `--repeat 3` only
+to intentionally make three additional attempts and incur their API cost. All
+attempts stay in the output; no failed run is silently replaced by a success.
+Offline selection is also supported without `--live`.
+
+Safe failure categories distinguish provider timeout, connection, authentication,
+rate limit, HTTP error, incomplete/model-limited output and turn/tool budgets.
+Agent diagnostics include elapsed time, turns, allowlisted tool names, tool-error
+counts, report-rejection categories and schema field paths/types without input
+values (unknown field names are replaced). Raw provider messages, headers, URLs,
+credentials, evidence and raw reports are excluded. Unknown errors remain generic.
+The HTTP endpoint still returns a sanitized error. Incomplete model output is not
+accepted as a report.
+
+Summary denominators include failed cases with zero matched targets. These are
+synthetic target matches, not an accuracy estimate. Successful metrics include
+model turns and report repairs. Failure diagnostics omit token totals because
+provider usage may be unavailable for a failed request.

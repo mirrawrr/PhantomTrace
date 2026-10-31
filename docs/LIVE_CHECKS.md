@@ -26,3 +26,25 @@ to Vite 7.3.7 generated an updated lockfile and their subsequent `npm audit`
 reported zero known vulnerabilities. The frontend workflow now audits dependencies
 and fails on high/critical findings. An audit result is time-dependent and does
 not prove an application is free of security defects.
+
+## First user-reported full live evaluation
+
+The user ran all five public cases once. Mixed, documented maintenance, wrong
+approval and embedded instruction completed and matched their expected targets.
+The ambiguous case failed generically; the cause cannot be established from that
+artifact.
+
+- Completed: 4/5 investigations; one failure retained.
+- Adaptive targets matched: 7/8, with the failed case contributing zero matches.
+- Rules-only targets matched: 5/8. That baseline lacks change-record matching;
+  this comparison does not isolate model intelligence.
+- Successful latency: 37.166-70.863 seconds; mean 49.331 seconds.
+- Successful responses reported 66,369 input and 22,437 output tokens in total.
+  Failed-request usage and elapsed time were unavailable.
+- No unexpected explained findings among completed runs. The failed run has no
+  assessable findings and is not a verified safe outcome.
+
+This prompted safe failure categories, single-case selection, explicit repetitions
+and failure-inclusive summaries. No timeout/budget increase or verdict change is
+justified without diagnostic evidence. Preserve the original failure even if a
+later rerun succeeds.

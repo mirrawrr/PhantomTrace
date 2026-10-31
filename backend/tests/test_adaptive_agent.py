@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 import unittest
+from types import SimpleNamespace as NS
 from unittest.mock import patch
+import httpx
+from openai import APITimeoutError
 
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -11,6 +14,7 @@ from app.tools.event_correlator import correlate_events
 from app.services.adaptive_agent import (
     AdaptiveRequest, AdaptiveReport, EvidenceWorkspace, Fact, Sequence,
     Query, Inspect, ChangeLookup, investigate_adaptive,
+    AdaptiveFailure,
 )
 from test_investigation_agent import call, response, client_for
 
@@ -188,6 +192,46 @@ class TestAdaptiveLoop(unittest.TestCase):
         client = client_for(response(report=report()),response(report=report()))
         with self.assertRaisesRegex(RuntimeError,'turn budget'):
             investigate_adaptive(request('ambiguous'),client=client,max_turns=2)
+
+    def test_failed_run_explains_budget_without_raw_report(self):
+        client=client_for(response(report={'secret':'do-not-export'}),response(report={}))
+        with self.assertRaises(AdaptiveFailure) as caught:
+            investigate_adaptive(request('ambiguous'),client=client,max_turns=2)
+        self.assertEqual(caught.exception.code,'turn_budget_exceeded')
+        self.assertEqual(caught.exception.diagnostics['model_turns'],2)
+        self.assertEqual(caught.exception.diagnostics['report_rejections'],['source_not_inspected']*2)
+        self.assertNotIn('do-not-export',json.dumps(caught.exception.diagnostics))
+
+    def test_timeout_preserves_tool_path_without_provider_message(self):
+        client=client_for(response([call('inspect_events',json.dumps({'event_ids':['AMB001'],'purpose':'Inspect source'}))]),
+                          APITimeoutError(request=httpx.Request('POST','https://example.test/private-token')))
+        with self.assertRaises(AdaptiveFailure) as caught:
+            investigate_adaptive(request('ambiguous'),client=client)
+        self.assertEqual(caught.exception.code,'provider_timeout')
+        self.assertEqual(caught.exception.diagnostics['tool_path'],['inspect_events'])
+        self.assertNotIn('private-token',json.dumps(caught.exception.diagnostics))
+
+    def test_incomplete_output_is_not_accepted_as_report(self):
+        partial=response(report=report())
+        partial.status='incomplete'
+        partial.incomplete_details=NS(reason='max_output_tokens')
+        client=client_for(partial)
+        with self.assertRaises(AdaptiveFailure) as caught:
+            investigate_adaptive(request('ambiguous'),client=client)
+        self.assertEqual(caught.exception.code,'model_output_limit')
+        self.assertEqual(client.responses.create.call_count,1)
+
+    def test_schema_diagnostics_keep_field_paths_without_inputs_or_unknown_keys(self):
+        value=report(finding('AMB001'))
+        value['findings'][0]['disposition']='private-value'
+        value['private-field']='private-value'
+        client=client_for(response([call('inspect_events',json.dumps({'event_ids':['AMB001'],'purpose':'Inspect source'}))]),
+                          response(report=value))
+        with self.assertRaises(AdaptiveFailure) as caught:
+            investigate_adaptive(request('ambiguous'),client=client,max_turns=2)
+        issues=caught.exception.diagnostics['validation_issues']
+        self.assertTrue(any(item['field']=='findings.#.disposition' for item in issues))
+        self.assertNotIn('private-',json.dumps(caught.exception.diagnostics))
 
     def test_invalid_tool_can_recover(self):
         client = client_for(response([call('shell','{}')]),
