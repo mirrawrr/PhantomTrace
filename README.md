@@ -7,8 +7,8 @@ PhantomTrace is an AI-powered digital forensics investigation agent that analyse
 | --- | --- | --- |
 | 1 | FastAPI backend and Muse Spark API integration | Complete |
 | 2 | Log parser, event correlation, evidence reference verifier | Complete |
-| 3 | Bounded Muse Spark tool-calling investigation and execution history | Implemented; live API smoke test pending |
-| 4 | React dashboard, findings, tool activity and interactive timeline | Implemented; local end-to-end check pending |
+| 3 | Bounded Muse Spark tool-calling investigation and execution history | Complete; original workflow live-tested |
+| 4 | React dashboard, findings, tool activity and interactive timeline | Complete; original workflow live-tested |
 | 5 | Integration testing, deployment and three-minute demo | Planned |
 
 ## Run Phase 3
@@ -99,3 +99,13 @@ The app shows actual returned findings; the model may summarize patterns differe
 This phase is for local development. A production host must route `/api` and
 `/health` to FastAPI on the same origin; Vite's development proxy is not part of
 the production build. Deployment and access controls are Phase 5 work.
+
+## Adaptive first-analyst investigation
+
+The dashboard now defaults to an adaptive workflow for fresh graduates and small
+IT teams. It adds evidence queries, exact change-record matching, structured fact
+and timing checks, competing explanations and an analyst handoff. The original
+fixed pipeline remains selectable. See [the adaptive investigation guide](docs/ADAPTIVE_INVESTIGATION.md)
+for tools, evidence-check limits, five synthetic practice cases and the opt-in live
+evaluation. No winning outcome, real-world accuracy or learning improvement has
+been established. Deployment remains pending.

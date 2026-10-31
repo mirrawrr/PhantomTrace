@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { filterEvents, investigate, MAX_LOG_LENGTH, SAMPLE_LOGS, utcTime } from './api.mjs';
+import { filterEvents, investigate, MAX_LOG_LENGTH, utcTime } from './api.mjs';
 import './styles.css';
+import scenarios from './scenarios.json';
+import { AdaptiveFindingDetails, HandoffPanel, FindingObservation } from './AdaptivePanels.jsx';
 
 const label = value => String(value).replaceAll('_', ' ').toLowerCase();
 
@@ -16,6 +18,9 @@ function App() {
   const [type, setType] = useState('ALL');
   const [selected, setSelected] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [mode, setMode] = useState('adaptive');
+  const [scenario, setScenario] = useState('mixed');
+  const [changeText, setChangeText] = useState('[]');
   const upload = useRef(null);
   const active = useRef(null);
   const resultHeading = useRef(null);
@@ -37,11 +42,21 @@ function App() {
   async function run(event) {
     event.preventDefault();
     if (active.current) return;
+    let changes = [];
+    if (mode === 'adaptive') {
+      try {
+        changes = JSON.parse(changeText);
+        if (!Array.isArray(changes) || changes.length > 30) throw new Error();
+      } catch {
+        setError('Change records must be a JSON array with up to 30 records. Use [] when no records are available.');
+        return;
+      }
+    }
     const controller = new AbortController();
     active.current = controller;
     setBusy(true); setError(''); setResult(null); setSelected(null);
     try {
-      const data = await investigate(logs, { signal: controller.signal });
+      const data = await investigate(logs, { signal: controller.signal, mode, changes });
       setResult(data); setTab('report'); setQuery(''); setType('ALL');
       setHealth('Backend connected');
       requestAnimationFrame(() => resultHeading.current?.focus());
@@ -65,6 +80,12 @@ function App() {
 
   function showEvent(id) {
     setSelected(id); setQuery(''); setType('ALL'); setTab('timeline');
+  }
+
+  function loadScenario() {
+    const sample = scenarios.find(item => item.id === scenario);
+    setLogs(sample.logs); setChangeText(JSON.stringify(sample.changes, null, 2));
+    setFileName(`Synthetic: ${sample.title}`); setError('');
   }
 
   function handleTabs(event) {
@@ -96,24 +117,30 @@ function App() {
     </header>
 
     <main id="main">
-      <section className="page-heading"><div><p className="eyebrow">FOLLOW THE EVIDENCE</p><h1>Every event tells a story.</h1><p className="intro">Turn security logs into an investigation you can trace.</p></div><div className="model-tag"><span className="spark">✧</span><div>Powered by Muse Spark<small>Agentic analysis · Evidence references</small></div></div></section>
+      <section className="page-heading"><div><p className="eyebrow">FOLLOW THE EVIDENCE</p><h1>Every event tells a story.</h1><p className="intro">Build an evidence-backed investigation. Know what to check next.</p></div><div className="model-tag"><span className="spark">✧</span><div>Powered by Muse Spark<small>Agentic analysis · Evidence references</small></div></div></section>
       <div className="workspace">
         <aside className="input-panel panel">
           <div className="panel-title"><span className="section-number">01</span><h2>Evidence intake</h2><span className="badge">LOGS</span></div>
           <p className="muted">Start with a log sample or bring your own evidence.</p>
           <form onSubmit={run}>
-            <div className="input-actions"><button type="button" className="secondary" disabled={busy} onClick={() => { setLogs(SAMPLE_LOGS); setFileName('Synthetic authentication sample'); setError(''); }}>↳ Load sample</button><button type="button" className="text-button" disabled={busy} onClick={() => upload.current.click()}>↑ Upload file</button></div>
+            <label className="field-label" htmlFor="investigation-mode">Investigation method</label>
+            <select id="investigation-mode" className="intake-select" value={mode} disabled={busy} onChange={event => setMode(event.target.value)}><option value="adaptive">Adaptive investigation</option><option value="fixed">Original fixed pipeline</option></select>
+            <label className="field-label" htmlFor="scenario">Synthetic practice case</label>
+            <select id="scenario" className="intake-select" value={scenario} disabled={busy} onChange={event => setScenario(event.target.value)}>{scenarios.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+            <p className="format-help">{scenarios.find(item => item.id === scenario).description} Select a case, then load it below.</p>
+            <div className="input-actions"><button type="button" className="secondary" disabled={busy} onClick={loadScenario}>↳ Load sample</button><button type="button" className="text-button" disabled={busy} onClick={() => upload.current.click()}>↑ Upload file</button></div>
             <input ref={upload} className="sr-only" type="file" accept=".txt,.log,text/plain" onChange={readFile} disabled={busy} aria-label="Upload security logs" />
             <label className="field-label" htmlFor="logs">Security logs <span>TXT / LOG</span></label>
             <textarea id="logs" spellCheck="false" value={logs} maxLength={MAX_LOG_LENGTH} disabled={busy} onChange={event => { setLogs(event.target.value); setFileName(''); }} placeholder={'EVT001 | 2026-10-28T02:12:00Z |\nPERMISSION_CHANGE | user=admin |\nrole=administrator'} />
             <div className="editor-footer"><span>{fileName || 'Paste pipe-separated events'}</span><span>{logs.length.toLocaleString()} / 20,000</span></div>
             <p className="format-help">One event per line. Include an ID, timestamp with timezone, event type and key=value fields.</p>
+            {mode === 'adaptive' && <details className="change-intake"><summary>Supplied change records · JSON</summary><p className="format-help">Optional approval context. Only exact actor, target, role and time matches count. These records are not independently authenticated.</p><label className="sr-only" htmlFor="changes">Change records JSON</label><textarea id="changes" value={changeText} maxLength={20000} disabled={busy} onChange={event => setChangeText(event.target.value)} /></details>}
             <button className="primary" disabled={busy || !logs.trim()} type="submit">{busy ? <><span className="spinner" />Investigating evidence…</> : <>Start investigation <span>↗</span></>}</button>
             {busy && <button type="button" className="cancel" onClick={() => active.current?.abort()}>Cancel request</button>}
             <p className="privacy">Logs are sent to Meta for analysis. Use synthetic data for your demo. API keys stay in your backend.</p>
           </form>
           {error && <div className="error" role="alert">{error}</div>}
-          <div className="pipeline"><p className="eyebrow">THE INVESTIGATION PATH</p>{[['01', 'Parse', 'Structure and validate events'], ['02', 'Correlate', 'Connect activity across evidence'], ['03', 'Verify', 'Check cited event references']].map(([n, title, desc]) => <div className="pipeline-step" key={n}><span>{n}</span><div><strong>{title}</strong><small>{desc}</small></div></div>)}</div>
+          <div className="pipeline"><p className="eyebrow">THE INVESTIGATION PATH</p>{[['01', 'Follow leads', 'Choose evidence that answers a question'], ['02', 'Challenge', 'Check competing explanations'], ['03', 'Handoff', 'Support claims and state what is unknown']].map(([n, title, desc]) => <div className="pipeline-step" key={n}><span>{n}</span><div><strong>{title}</strong><small>{desc}</small></div></div>)}</div>
         </aside>
 
         <section className="results" aria-busy={busy}>
@@ -122,9 +149,9 @@ function App() {
           {!result ? <div className="empty-state panel" role="status"><div className={`radar ${busy ? 'scanning' : ''}`} aria-hidden="true"><span /><i /><b>⌖</b></div><p className="eyebrow">{busy ? 'MUSE SPARK IS INVESTIGATING' : 'READY WHEN YOU ARE'}</p><h3>{busy ? 'Building a traceable investigation' : 'From raw logs to a clearer picture.'}</h3><p>{busy ? 'The agent is working with the evidence tools. Actual tool results will appear when the request completes.' : 'Add evidence on the left. PhantomTrace will connect events, surface findings and check the report’s references.'}</p><div className="empty-tags"><span>Evidence first</span><span>Traceable tool calls</span><span>Human review</span></div></div> : <>
             <div className="tabbar" onKeyDown={handleTabs} role="tablist" aria-label="Investigation views">{[['report', 'Findings'], ['timeline', 'Event timeline'], ['tools', 'Tool activity']].map(([id, text]) => <button key={id} id={`tab-${id}`} type="button" role="tab" tabIndex={tab === id ? 0 : -1} aria-selected={tab === id} aria-controls={`view-${id}`} onClick={() => setTab(id)}>{text}<span>{id === 'report' ? result.report.findings.length : id === 'timeline' ? result.events.length : result.tool_history.length}</span></button>)}</div>
             <div role="tabpanel" id={`view-${tab}`} aria-labelledby={`tab-${tab}`}>
-              {tab === 'report' && <div className="report-content"><article className="summary panel"><p className="eyebrow">EXECUTIVE SUMMARY</p><p>{result.report.summary}</p><span className="small-tag">{result.model}</span></article><div className="subheading"><h3>Key findings</h3><span>Review each claim against its evidence</span></div>{result.report.findings.length === 0 && <p className="panel no-findings">No findings were reported. This does not establish that the activity is safe.</p>}{result.report.findings.map((finding, index) => <article className="finding panel" key={index}><div className="finding-top"><span className="finding-number">{String(index + 1).padStart(2, '0')}</span><h3>{label(finding.type)}</h3><span className="review-tag">REVIEW</span></div><p>{finding.description}</p><div className="evidence-links"><span>Evidence</span>{finding.event_ids.map(id => <button key={id} onClick={() => showEvent(id)}>{id} ↗</button>)}</div></article>)}<div className="report-bottom"><article className="panel"><h3>Recommended next steps</h3><ul>{result.report.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul></article><article className="panel limitations"><h3>Investigation limitations</h3><ul>{result.report.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></article></div><p className="verification-note">Reference checks confirm that cited event IDs exist. They do not prove a conclusion is correct.</p></div>}
+              {tab === 'report' && <div className="report-content"><article className="summary panel"><p className="eyebrow">EXECUTIVE SUMMARY · MODEL ASSESSMENT</p><p>{result.report.summary}</p><span className="small-tag">{result.model}</span></article><div className="subheading"><h3>Key findings</h3><span>Review each claim against its evidence</span></div>{result.report.findings.length === 0 && <p className="panel no-findings">No findings were reported. This does not establish that the activity is safe.</p>}{result.report.findings.map((finding, index) => <article className="finding panel" key={index}><div className="finding-top"><span className="finding-number">{String(index + 1).padStart(2, '0')}</span><h3>{label(finding.type)}</h3><span className="review-tag">{finding.disposition === 'explained_by_record' ? 'RECORD MATCH' : finding.disposition === 'unresolved' ? 'UNRESOLVED' : 'REVIEW'}</span></div><FindingObservation finding={finding} /><AdaptiveFindingDetails finding={finding} /><div className="evidence-links"><span>Evidence</span>{finding.event_ids.map(id => <button key={id} onClick={() => showEvent(id)}>{id} ↗</button>)}</div></article>)}<HandoffPanel result={result} /><div className="report-bottom"><article className="panel"><h3>Recommended next steps</h3><ul>{result.report.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul></article><article className="panel limitations"><h3>Investigation limitations</h3><ul>{result.report.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></article></div><p className="verification-note">{result.claim_verification ? 'Structured fact and timing checks passed. Narrative conclusions, intent and supplied record authenticity still require human review.' : 'Reference checks confirm that cited event IDs exist. They do not prove a conclusion is correct.'}</p></div>}
               {tab === 'timeline' && <div className="timeline-view"><div className="filters"><label><span className="sr-only">Search events</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search ID, user, IP or event…" /></label><label><span className="sr-only">Filter event type</span><select value={type} onChange={event => setType(event.target.value)}><option value="ALL">All event types</option>{[...new Set(result.events.map(event => event.event_type))].map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label></div><p className="timeline-count">{events.length} events · Chronological order · UTC</p><div className="timeline">{events.map(event => <button className={`timeline-event panel ${selected === event.event_id ? 'selected' : ''}`} key={event.event_id} onClick={() => setSelected(event.event_id)}><time>{utcTime(event.timestamp)}</time><div><span className={`event-dot ${event.event_type === 'LOGIN_FAILED' ? 'warn' : ''}`} /><strong>{label(event.event_type)}</strong><span className="event-id">{event.event_id}</span></div><p>{event.user || 'Unknown user'} <span>·</span> {event.ip || 'No IP recorded'}</p></button>)}</div>{events.length === 0 && <p className="panel no-findings">No events match these filters.</p>}{selectedEvent && <article className="panel event-detail" ref={eventDetail} tabIndex={-1}><div className="subheading"><h3>Evidence / {selectedEvent.event_id}</h3><button className="text-button" onClick={() => setSelected(null)}>Close</button></div><p className="muted">Original source entry</p><pre>{selectedEvent.raw}</pre><dl>{Object.entries(selectedEvent.fields).map(([key, value]) => <React.Fragment key={key}><dt>{key}</dt><dd>{value}</dd></React.Fragment>)}</dl></article>}</div>}
-              {tab === 'tools' && <div className="tool-view"><p className="muted">Actual tool executions returned by this investigation, in execution order.</p>{result.tool_history.map((entry, index) => <details className="panel tool-entry" key={`${entry.call_id}-${index}`}><summary><span className="section-number">{String(index + 1).padStart(2, '0')}</span><strong>{entry.tool}</strong><span className={entry.result?.error ? 'tool-error' : 'tool-ok'}>{entry.result?.error ? 'Tool error' : 'Returned'}</span></summary><p className="call-id">Call ID: {entry.call_id}</p><pre>{JSON.stringify(entry.result, null, 2)}</pre></details>)}</div>}
+              {tab === 'tools' && <div className="tool-view"><p className="muted">Actual tool executions returned by this investigation, in execution order.</p>{result.tool_history.map((entry, index) => <details className="panel tool-entry" key={`${entry.call_id}-${index}`}><summary><span className="section-number">{String(index + 1).padStart(2, '0')}</span><strong>{entry.tool}</strong><span className={entry.result?.error ? 'tool-error' : 'tool-ok'}>{entry.result?.error ? 'Tool error' : 'Returned'}</span></summary><p className="muted">{entry.purpose}</p><p className="call-id">Call ID: {entry.call_id}</p><pre>{JSON.stringify(entry.result, null, 2)}</pre></details>)}</div>}
             </div>
           </>}
         </section>

@@ -10,11 +10,11 @@ export function validateLogs(logs) {
   if (logs.length > MAX_LOG_LENGTH) throw new Error('Logs must contain 20,000 characters or fewer.');
 }
 
-export async function investigate(logs, { signal, fetcher = fetch } = {}) {
+export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [] } = {}) {
   validateLogs(logs);
-  const response = await fetcher('/api/investigate/agent', {
+  const response = await fetcher(mode === 'adaptive' ? '/api/investigate/adaptive' : '/api/investigate/agent', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ logs }), signal,
+    body: JSON.stringify(mode === 'adaptive' ? { logs, changes } : { logs }), signal,
   });
   let data;
   try { data = await response.json(); }

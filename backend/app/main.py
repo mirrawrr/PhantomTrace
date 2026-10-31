@@ -8,6 +8,7 @@ from app.tools.evidence_verifier import verify_evidence
 
 from app.services.meta_ai import investigate_with_ai
 from app.services.investigation_agent import investigate_agent, InvalidLogs
+from app.services.adaptive_agent import AdaptiveRequest, investigate_adaptive
 
 app = FastAPI(
     title="PhantomTrace API",
@@ -83,3 +84,13 @@ def agent_investigate(request: InvestigationRequest):
         raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
     except (OpenAIError, RuntimeError) as exc:
         raise HTTPException(status_code=502, detail="Agent investigation failed. Check Meta API configuration or retry.") from exc
+
+
+@app.post("/api/investigate/adaptive")
+def adaptive_investigate(request: AdaptiveRequest):
+    try:
+        return investigate_adaptive(request)
+    except InvalidLogs as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
+    except (OpenAIError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail="Adaptive investigation failed. Check configuration or retry.") from exc
