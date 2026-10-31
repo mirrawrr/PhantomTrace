@@ -11,6 +11,10 @@ import tempfile
 from decimal import Decimal, ROUND_CEILING
 
 
+class DemoBudgetError(RuntimeError):
+    pass
+
+
 def ledger():
     db = sqlite3.connect(os.getenv('DEMO_USAGE_DB', os.path.join(tempfile.gettempdir(), 'phantomtrace-usage.sqlite3')), timeout=5)
     db.execute('CREATE TABLE IF NOT EXISTS spend (id INTEGER PRIMARY KEY, micros INTEGER NOT NULL)')
@@ -26,12 +30,12 @@ def reserve(micros):
             db.execute('BEGIN IMMEDIATE')
             used = db.execute('SELECT COALESCE(SUM(micros), 0) FROM spend').fetchone()[0]
             if used + micros > ceiling:
-                raise RuntimeError('Live model budget exhausted; use recorded replay.')
+                raise DemoBudgetError('Live model budget exhausted; use recorded replay.')
             reservation_id = db.execute('INSERT INTO spend(micros) VALUES (?)', (micros,)).lastrowid
             db.commit()
             return reservation_id
     except (sqlite3.Error, ValueError, ArithmeticError) as exc:
-        raise RuntimeError('Live model budget unavailable; use recorded replay.') from exc
+        raise DemoBudgetError('Live model budget unavailable; use recorded replay.') from exc
 
 
 class BudgetedResponses:
@@ -42,9 +46,9 @@ class BudgetedResponses:
         # Reserve the entire 1,048,576 context at uncached input pricing,
         # plus output. Only these models/tools and bounded outputs are allowed.
         if kwargs.get('model') != 'muse-spark-1.3' or not 1 <= kwargs.get('max_output_tokens', 0) <= 6500:
-            raise RuntimeError('Hosted budget supports bounded Muse Spark 1.3 requests only.')
+            raise DemoBudgetError('Hosted budget supports bounded Muse Spark 1.3 requests only.')
         if any(tool.get('type') != 'function' for tool in kwargs.get('tools', [])):
-            raise RuntimeError('Hosted budget does not allow additional billed tools.')
+            raise DemoBudgetError('Hosted budget does not allow additional billed tools.')
         reservation = 1_400_000  # $1.40; worst case $1.3384 per request
         reservation_id = reserve(reservation)
         result = self.responses.create(**kwargs)
