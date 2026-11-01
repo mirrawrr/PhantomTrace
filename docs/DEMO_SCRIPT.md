@@ -98,3 +98,24 @@ November 5, 10 AM Malaysia time; recheck official announcements before submittin
 For the four rubric categories, show the user problem (impact), actual model/tool
 decisions (Meta tooling), checked evidence and failure handling (execution), and
 one coherent live workflow (demo). No judge score or top-five outcome is implied.
+
+## Candidate revision: injection and witness moment
+
+Use only after live acceptance of the new voice feature. Keep the existing
+three-minute limit: replace part of the long mixed-case explanation rather than
+adding another minute.
+
+- Show the existing one-event injection case for 20 seconds: “This note tells
+  the AI to suppress a finding. It is evidence, not an instruction. The agent
+  retains the permission-change review and cannot invent a matching approval.”
+  Open the source note and checked fields. Do not call it an export case.
+- For voice: show a short synthetic WAV, its returned editable transcript, and
+  the witness claim panel. Say “Matching a mapped log field is not proof that
+  the witness is truthful. Approval and identity still need independent checks.”
+  Never label typed text as a successful voice-model call.
+- Personal opening: use the developer's real university-to-first-job experience
+  in their own words. Do not claim certificates are universally required.
+- Use the measured nine-event run, with its actual duration. Do not present an
+  unrun 2,000-line example as a benchmark.
+- If replay is used, keep its RECORDED REPLAY banner visible and explain that
+  the bundled recording uses the older five-event pipeline.

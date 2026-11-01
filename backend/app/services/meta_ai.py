@@ -18,12 +18,17 @@ def get_meta_client():
             "MODEL_API_KEY is missing from backend/.env"
         )
 
-    return OpenAI(
+    budgeted = os.getenv('DEMO_ENFORCE_BUDGET', '').lower() == 'true'
+    client = OpenAI(
         api_key=api_key,
         base_url="https://api.meta.ai/v1",
         timeout=30.0,
-        max_retries=1,
+        max_retries=0 if budgeted else 1,
     )
+    if budgeted:
+        from app.model_budget import BudgetedResponses
+        client.responses = BudgetedResponses(client.responses)
+    return client
 
 
 def investigate_with_ai(log_data: str):

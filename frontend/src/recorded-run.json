@@ -1,0 +1,307 @@
+{
+  "status": "completed",
+  "model": "muse-spark-1.3",
+  "report": {
+    "summary": "Parsed 5 events (EVT001-EVT005) for user admin. Observed 3 LOGIN_FAILED events followed by LOGIN_SUCCESS from same IP, then a PERMISSION_CHANGE granting administrator to backup_service. Cause and intent are undetermined.",
+    "findings": [
+      {
+        "type": "FAILED_LOGINS_THEN_SUCCESS",
+        "description": "Observation: EVT001, EVT002, EVT003 are LOGIN_FAILED for admin from 203.0.113.45 within 15 seconds, followed by EVT004 LOGIN_SUCCESS for admin from same IP ~45 seconds later. Hypothesis: could reflect mistyped credentials, legitimate retry, or unauthorized guessing, but attack is not confirmed.",
+        "event_ids": [
+          "EVT001",
+          "EVT002",
+          "EVT003",
+          "EVT004"
+        ]
+      },
+      {
+        "type": "PERMISSION_CHANGE_REVIEW",
+        "description": "Observation: EVT005 is PERMISSION_CHANGE by admin granting target backup_service role administrator one minute after login success. Hypothesis: could be authorized administration or potentially suspicious privilege change; authorization and intent require verification and are not confirmed.",
+        "event_ids": [
+          "EVT005"
+        ]
+      }
+    ],
+    "recommendations": [
+      "Verify with admin account owner whether EVT001-EVT004 logins and EVT005 permission change were authorized",
+      "Review additional authentication and authorization logs around 2026-10-28T02:10:00Z to 2026-10-28T02:12:00Z for context",
+      "Verify whether backup_service administrator role is still present and whether it should be retained or reverted pending review"
+    ],
+    "limitations": [
+      "Analysis limited to 5 submitted events; no endpoint, network, or identity context available",
+      "User intent, credential ownership, and authorization status cannot be determined from logs alone",
+      "Reference verification confirmed that EVT001-EVT005 exist (2/2 findings valid), but validity only establishes IDs exist, not that a conclusion is true",
+      "No baseline for normal admin login or permission-change behavior was provided"
+    ]
+  },
+  "events": [
+    {
+      "event_id": "EVT001",
+      "timestamp": "2026-10-28T02:10:00+00:00",
+      "event_type": "LOGIN_FAILED",
+      "user": "admin",
+      "ip": "203.0.113.45",
+      "fields": {
+        "user": "admin",
+        "ip": "203.0.113.45"
+      },
+      "raw": "EVT001 | 2026-10-28T02:10:00Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+    },
+    {
+      "event_id": "EVT002",
+      "timestamp": "2026-10-28T02:10:08+00:00",
+      "event_type": "LOGIN_FAILED",
+      "user": "admin",
+      "ip": "203.0.113.45",
+      "fields": {
+        "user": "admin",
+        "ip": "203.0.113.45"
+      },
+      "raw": "EVT002 | 2026-10-28T02:10:08Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+    },
+    {
+      "event_id": "EVT003",
+      "timestamp": "2026-10-28T02:10:15+00:00",
+      "event_type": "LOGIN_FAILED",
+      "user": "admin",
+      "ip": "203.0.113.45",
+      "fields": {
+        "user": "admin",
+        "ip": "203.0.113.45"
+      },
+      "raw": "EVT003 | 2026-10-28T02:10:15Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+    },
+    {
+      "event_id": "EVT004",
+      "timestamp": "2026-10-28T02:11:00+00:00",
+      "event_type": "LOGIN_SUCCESS",
+      "user": "admin",
+      "ip": "203.0.113.45",
+      "fields": {
+        "user": "admin",
+        "ip": "203.0.113.45"
+      },
+      "raw": "EVT004 | 2026-10-28T02:11:00Z | LOGIN_SUCCESS | user=admin | ip=203.0.113.45"
+    },
+    {
+      "event_id": "EVT005",
+      "timestamp": "2026-10-28T02:12:00+00:00",
+      "event_type": "PERMISSION_CHANGE",
+      "user": "admin",
+      "ip": null,
+      "fields": {
+        "user": "admin",
+        "target": "backup_service",
+        "role": "administrator"
+      },
+      "raw": "EVT005 | 2026-10-28T02:12:00Z | PERMISSION_CHANGE | user=admin | target=backup_service | role=administrator"
+    }
+  ],
+  "correlation": {
+    "event_count": 5,
+    "users": {
+      "admin": 5
+    },
+    "ip_addresses": {
+      "203.0.113.45": 4
+    },
+    "findings": [
+      {
+        "type": "FAILED_LOGINS_THEN_SUCCESS",
+        "severity": "medium",
+        "description": "Multiple failed logins followed by successful authentication.",
+        "event_ids": [
+          "EVT001",
+          "EVT002",
+          "EVT003",
+          "EVT004"
+        ],
+        "user": "admin",
+        "ip": "203.0.113.45"
+      },
+      {
+        "type": "PERMISSION_CHANGE_REVIEW",
+        "severity": "medium",
+        "description": "Permission modification detected; authorization requires verification.",
+        "event_ids": [
+          "EVT005"
+        ],
+        "user": "admin",
+        "ip": null
+      }
+    ],
+    "finding_count": 2
+  },
+  "verification": {
+    "verified_references": 2,
+    "total_findings": 2,
+    "results": [
+      {
+        "finding_type": "FAILED_LOGINS_THEN_SUCCESS",
+        "referenced_ids": [
+          "EVT001",
+          "EVT002",
+          "EVT003",
+          "EVT004"
+        ],
+        "missing_ids": [],
+        "references_valid": true
+      },
+      {
+        "finding_type": "PERMISSION_CHANGE_REVIEW",
+        "referenced_ids": [
+          "EVT005"
+        ],
+        "missing_ids": [],
+        "references_valid": true
+      }
+    ]
+  },
+  "tool_history": [
+    {
+      "call_id": "call_9b100682-7f45-4b1e-bae1-fc2c8383af85",
+      "tool": "parse_logs",
+      "result": {
+        "events": [
+          {
+            "event_id": "EVT001",
+            "timestamp": "2026-10-28T02:10:00+00:00",
+            "event_type": "LOGIN_FAILED",
+            "user": "admin",
+            "ip": "203.0.113.45",
+            "fields": {
+              "user": "admin",
+              "ip": "203.0.113.45"
+            },
+            "raw": "EVT001 | 2026-10-28T02:10:00Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+          },
+          {
+            "event_id": "EVT002",
+            "timestamp": "2026-10-28T02:10:08+00:00",
+            "event_type": "LOGIN_FAILED",
+            "user": "admin",
+            "ip": "203.0.113.45",
+            "fields": {
+              "user": "admin",
+              "ip": "203.0.113.45"
+            },
+            "raw": "EVT002 | 2026-10-28T02:10:08Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+          },
+          {
+            "event_id": "EVT003",
+            "timestamp": "2026-10-28T02:10:15+00:00",
+            "event_type": "LOGIN_FAILED",
+            "user": "admin",
+            "ip": "203.0.113.45",
+            "fields": {
+              "user": "admin",
+              "ip": "203.0.113.45"
+            },
+            "raw": "EVT003 | 2026-10-28T02:10:15Z | LOGIN_FAILED | user=admin | ip=203.0.113.45"
+          },
+          {
+            "event_id": "EVT004",
+            "timestamp": "2026-10-28T02:11:00+00:00",
+            "event_type": "LOGIN_SUCCESS",
+            "user": "admin",
+            "ip": "203.0.113.45",
+            "fields": {
+              "user": "admin",
+              "ip": "203.0.113.45"
+            },
+            "raw": "EVT004 | 2026-10-28T02:11:00Z | LOGIN_SUCCESS | user=admin | ip=203.0.113.45"
+          },
+          {
+            "event_id": "EVT005",
+            "timestamp": "2026-10-28T02:12:00+00:00",
+            "event_type": "PERMISSION_CHANGE",
+            "user": "admin",
+            "ip": null,
+            "fields": {
+              "user": "admin",
+              "target": "backup_service",
+              "role": "administrator"
+            },
+            "raw": "EVT005 | 2026-10-28T02:12:00Z | PERMISSION_CHANGE | user=admin | target=backup_service | role=administrator"
+          }
+        ],
+        "errors": [],
+        "total_events": 5
+      }
+    },
+    {
+      "call_id": "call_8233da8b-791f-47fa-a61d-b31a11a1c600",
+      "tool": "correlate_events",
+      "result": {
+        "event_count": 5,
+        "users": {
+          "admin": 5
+        },
+        "ip_addresses": {
+          "203.0.113.45": 4
+        },
+        "findings": [
+          {
+            "type": "FAILED_LOGINS_THEN_SUCCESS",
+            "severity": "medium",
+            "description": "Multiple failed logins followed by successful authentication.",
+            "event_ids": [
+              "EVT001",
+              "EVT002",
+              "EVT003",
+              "EVT004"
+            ],
+            "user": "admin",
+            "ip": "203.0.113.45"
+          },
+          {
+            "type": "PERMISSION_CHANGE_REVIEW",
+            "severity": "medium",
+            "description": "Permission modification detected; authorization requires verification.",
+            "event_ids": [
+              "EVT005"
+            ],
+            "user": "admin",
+            "ip": null
+          }
+        ],
+        "finding_count": 2
+      }
+    },
+    {
+      "call_id": "call_357a4fab-e5a0-43d9-ba50-364d744a1d78",
+      "tool": "verify_evidence",
+      "result": {
+        "verified_references": 2,
+        "total_findings": 2,
+        "results": [
+          {
+            "finding_type": "FAILED_LOGINS_THEN_SUCCESS",
+            "referenced_ids": [
+              "EVT001",
+              "EVT002",
+              "EVT003",
+              "EVT004"
+            ],
+            "missing_ids": [],
+            "references_valid": true
+          },
+          {
+            "finding_type": "PERMISSION_CHANGE_REVIEW",
+            "referenced_ids": [
+              "EVT005"
+            ],
+            "missing_ids": [],
+            "references_valid": true
+          }
+        ]
+      }
+    }
+  ],
+  "replay": {
+    "label": "Recorded run \u2014 original five-event pipeline",
+    "source": "User-exported real Muse Spark response supplied during development. Synthetic logs only.",
+    "recorded_at": null,
+    "notice": "Recording date was not retained. This is an older fixed-pipeline run, not a new live investigation or the adaptive nine-event case."
+  }
+}

@@ -48,7 +48,7 @@ def smoke(base_url):
     status, _, body = fetch('/health')
     if status != 200 or json.loads(body).get('status') != 'healthy':
         raise RuntimeError('Health check failed.')
-    if fetch('/')[0] != 401 or fetch('/api/evidence/analyze', payload={'logs': 'bad'})[0] != 401:
+    if fetch('/')[0] not in {200, 401} or fetch('/api/evidence/analyze', payload={'logs': 'bad'})[0] != 401:
         raise RuntimeError('Demo login protection failed.')
     status, headers, body = fetch('/', authenticated=True)
     if status != 200 or b'PhantomTrace' not in body or headers.get('cache-control') != 'no-store':

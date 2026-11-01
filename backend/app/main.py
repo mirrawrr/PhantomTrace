@@ -1,5 +1,7 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+import httpx
+from app.model_budget import DemoBudgetError
 from pydantic import BaseModel, Field
 from openai import OpenAIError
 from app.tools.log_parser import parse_security_logs
@@ -40,6 +42,8 @@ def investigate(request: InvestigationRequest):
             "model": "Meta Muse Spark",
             "analysis": analysis
         }
+    except DemoBudgetError as exc:
+        raise HTTPException(status_code=429, detail='Live demo model budget unavailable or exhausted. Use recorded replay.') from exc
     except (OpenAIError, RuntimeError):
         raise HTTPException(
             status_code=502,
@@ -82,6 +86,8 @@ def agent_investigate(request: InvestigationRequest):
         return investigate_agent(request.logs)
     except InvalidLogs as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
+    except DemoBudgetError as exc:
+        raise HTTPException(status_code=429, detail='Live demo model budget unavailable or exhausted. Use recorded replay.') from exc
     except (OpenAIError, RuntimeError) as exc:
         raise HTTPException(status_code=502, detail="Agent investigation failed. Check Meta API configuration or retry.") from exc
 
@@ -89,8 +95,56 @@ def agent_investigate(request: InvestigationRequest):
 @app.post("/api/investigate/adaptive")
 def adaptive_investigate(request: AdaptiveRequest):
     try:
-        return investigate_adaptive(request)
+        result = investigate_adaptive(request)
+        if request.witness_statement.strip():
+            from app.services.testimony import check_testimony, TestimonyFailure
+            from app.services.adaptive_agent import EvidenceWorkspace
+            try:
+                result['testimony'] = check_testimony(request.witness_statement, EvidenceWorkspace(request))
+            except TestimonyFailure as exc:
+                result['testimony_error_code'] = exc.code
+                result['testimony_error'] = 'Witness claim check did not finish (' + exc.code + '). The log investigation is available; testimony remains unverified.'
+            except (OpenAIError, RuntimeError, ValueError):
+                result['testimony_error'] = 'Witness claim check did not finish. The log investigation is available; testimony remains unverified.'
+        return result
     except InvalidLogs as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "errors": exc.errors}) from exc
-    except (OpenAIError, RuntimeError) as exc:
+    except DemoBudgetError as exc:
+        raise HTTPException(status_code=429, detail='Live demo model budget unavailable or exhausted. Use recorded replay.') from exc
+    except (OpenAIError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Adaptive investigation failed. Check configuration or retry.") from exc
+
+
+@app.post('/api/investigate/testimony')
+def witness_only(request: AdaptiveRequest):
+    from app.services.testimony import check_testimony, TestimonyFailure
+    from app.services.adaptive_agent import EvidenceWorkspace
+    if not request.witness_statement.strip():
+        raise HTTPException(status_code=422, detail='Add a witness statement first.')
+    try:
+        return {'status': 'completed', 'testimony': check_testimony(
+            request.witness_statement, EvidenceWorkspace(request))}
+    except InvalidLogs as exc:
+        raise HTTPException(status_code=422, detail='Check source log format.') from exc
+    except TestimonyFailure as exc:
+        raise HTTPException(status_code=502, detail={'code': exc.code,
+            'message': 'Witness check did not finish; testimony remains unverified.'}) from exc
+
+
+@app.post('/api/testimony/transcribe')
+async def transcribe_testimony(request: Request):
+    from app.services.testimony import transcribe_audio
+    from starlette.concurrency import run_in_threadpool
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 3_000_000:
+            raise HTTPException(status_code=413, detail='Voice note must be at most 60 seconds.')
+    try:
+        return await run_in_threadpool(transcribe_audio, bytes(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except DemoBudgetError as exc:
+        raise HTTPException(status_code=429, detail='Live demo model budget unavailable or exhausted. Enter a typed statement instead.') from exc
+    except (httpx.HTTPError, RuntimeError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail='Voice transcription unavailable. Enter the statement as text instead.') from exc
