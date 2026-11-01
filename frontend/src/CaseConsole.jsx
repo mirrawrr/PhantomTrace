@@ -27,7 +27,7 @@ export default function CaseConsole({ result, liveEvents, liveTools, busy }) {
   const references = result?.verification;
   const steps = result ? nextSteps(result.report) : [];
   return <div className="case-console">
-    {result?.replay && <div className="replay-banner panel"><strong>RECORDED REPLAY / NOT LIVE</strong><p>{result.replay.label}. {result.replay.notice}</p></div>}
+    {result?.replay && <details className="replay-banner panel"><summary><strong>RECORDED REPLAY / NOT LIVE</strong><span>Original five-event pipeline · recording details +</span></summary><p>{result.replay.label}. {result.replay.notice}</p></details>}
     <section className="verdict-strip" aria-label="Report dispositions">
       {[['explained', 'RECORD MATCH'], ['review', 'NEEDS REVIEW'], ['unresolved', 'UNRESOLVED']].map(([key, text]) => <div className={`score ${key}`} key={key}><strong>{result ? String(counts[key]).padStart(2, '0') : '—'}</strong><span>{text}</span></div>)}
       <div key={result ? 'checked' : 'pending'} className="score verified"><strong>{result ? `${references.verified_references}/${references.total_findings}` : '—'}</strong><span>REFERENCES VERIFIED</span><small>ID existence only</small></div>

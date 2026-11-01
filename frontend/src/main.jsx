@@ -134,7 +134,7 @@ function App() {
   }
 
   const testimony = witnessReview || result?.testimony;
-  return <div className="app case-app">
+  return <div className={`app case-app ${result || busy ? 'has-case' : ''}`}>
     <header className="topbar"><a className="brand" href="#main"><span className="brandmark" aria-hidden="true">P↗</span><span>PHANTOM<span className="brandlight">TRACE</span><small>CASE CONSOLE / EVIDENCE OPERATIONS</small></span></a><span className={`connection ${health === 'Backend connected' ? 'online' : ''}`}><i />{health}</span></header>
     <main id="main">
       <section className="case-heading"><div><p className="eyebrow">FOLLOW EVIDENCE. CHALLENGE THE STORY.</p><h1 ref={resultHeading} tabIndex={-1}>{busy ? 'INVESTIGATION ACTIVE' : result ? 'CASE / EVIDENCE CONNECTED' : witnessReview ? 'WITNESS / EVIDENCE CHECK' : 'YOUR NEXT CASE STARTS HERE'}</h1></div><div className="case-controls">{busy && <button type="button" className="cancel" onClick={() => active.current?.abort()}>Cancel request</button>}{result && <button type="button" className="secondary" onClick={download}>↓ Export JSON</button>}<span className="model-tag">MUSE SPARK / HUMAN REVIEW</span></div></section>
