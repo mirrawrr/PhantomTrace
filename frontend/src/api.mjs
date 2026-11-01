@@ -10,6 +10,15 @@ export function validateLogs(logs) {
   if (logs.length > MAX_LOG_LENGTH) throw new Error('Logs must contain 20,000 characters or fewer.');
 }
 
+export async function readJsonResponse(response) {
+  try { return await response.json(); }
+  catch (error) {
+    if (error.name === 'AbortError') throw error;
+    const status = Number.isInteger(response.status) ? ` (HTTP ${response.status})` : '';
+    throw new Error(`The backend returned an empty or unreadable response${status}. Check that the backend is running and inspect its terminal before retrying.`);
+  }
+}
+
 export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [], witnessStatement = '', authorization = '', onEvent } = {}) {
   validateLogs(logs);
   const streaming = mode === 'adaptive' && typeof onEvent === 'function';
@@ -17,21 +26,19 @@ export async function investigate(logs, { signal, fetcher = fetch, mode = 'adapt
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
     body: JSON.stringify(mode === 'adaptive' ? { logs, changes, ...(witnessStatement.trim() ? { witness_statement: witnessStatement } : {}) } : { logs }), signal,
   });
-  let data;
-  try { data = streaming && response.ok ? await readInvestigationStream(response, onEvent) : await response.json(); }
-  catch (error) { if (streaming || error.name === 'AbortError') throw error; throw new Error('The backend returned an unreadable response. Check that FastAPI is running.'); }
+  const data = streaming && response.ok ? await readInvestigationStream(response, onEvent) : await readJsonResponse(response);
   if (!response.ok) {
     if (response.status === 401) throw new Error('Live investigation requires demo credentials. Enter the testing credentials or use recorded replay.');
     if (response.status === 429) throw new Error('Live demo allowance reached. Use recorded replay or return later.');
     if (response.status === 422) {
-      const errors = data.detail?.errors;
+      const errors = data?.detail?.errors;
       throw new Error(Array.isArray(errors) ? errors.join('\n') : 'The backend rejected these logs. Check the event format and timestamps.');
     }
     throw new Error(response.status === 502
-      ? 'The AI investigation could not finish. Check the backend API key and configuration, then retry.'
-      : `Investigation failed (HTTP ${response.status}). Please retry.`);
+      ? 'The AI investigation could not finish (HTTP 502). Inspect the backend terminal before retrying.'
+      : `Investigation failed (HTTP ${response.status}). Inspect the backend terminal before retrying.`);
   }
-  if (data.status !== 'completed' || !data.report ||
+  if (!data || data.status !== 'completed' || !data.report ||
       typeof data.report.summary !== 'string' ||
       !Array.isArray(data.report.findings) || !Array.isArray(data.report.recommendations) ||
       !Array.isArray(data.report.limitations) || !Array.isArray(data.events) ||
@@ -53,7 +60,10 @@ export async function readInvestigationStream(response, onEvent) {
     const event = lines.find(line => line.startsWith('event:'))?.slice(6).trim();
     const payload = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
     if (!payload || !['workspace', 'tool', 'result', 'error'].includes(event)) return;
-    const data = JSON.parse(payload);
+    let data;
+    try { data = JSON.parse(payload); }
+    catch { throw new Error('The activity stream contained an incomplete or unreadable frame. Completed activity is retained; no final verdict is available.'); }
+    if (!data || typeof data !== 'object') throw new Error('The activity stream returned an invalid frame. No final verdict is available.');
     if (event === 'error') {
       const known = new Set(['invalid_logs','budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_output_limit','model_response_incomplete','tool_budget_exceeded','turn_budget_exceeded','investigation_failed']);
       const provider = data.provider || {};

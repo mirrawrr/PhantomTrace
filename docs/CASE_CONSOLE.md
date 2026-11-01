@@ -93,3 +93,7 @@ A local streamed run returned `provider_http_error`; its original status and cau
 ## Adaptive provider wait
 
 A subsequent local run returned `provider_timeout`, distinct from the earlier HTTP failure. Adaptive investigations now allow 90 seconds per provider request instead of the shared legacy 30 seconds, with SDK automatic retries disabled in both local and hosted adaptive mode. The timeout was not proven to be the original HTTP failure cause. This is a per-request wait, not a 90-second whole-investigation deadline; tool-turn and dollar limits remain unchanged. Other legacy callers retain their prior defaults. Validate with one explicit live run; do not repeatedly retry failures or increase spending limits to hide a provider problem.
+
+## Empty or interrupted backend responses
+
+The local user log shows the SSE request began with HTTP 200 and later Uvicorn shut down; the backend is currently stopped in that supplied log. A 200 stream response does not establish completion. Empty/non-JSON HTTP responses now show their status without exposing their body or the raw browser JSON exception. Malformed stream frames retain prior activity and cannot produce a final verdict. Restart Uvicorn and keep its terminal open for acceptance testing. The sequence does not prove which event caused the earlier provider HTTP error or timeout.

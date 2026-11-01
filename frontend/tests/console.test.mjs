@@ -36,6 +36,15 @@ test('provider error shows only allowlisted status and labels',async()=>{
     assert.match(error.message,/field: input/);assert.doesNotMatch(error.message,/private-key/);return true;
   });
 });
+test('empty proxy error includes HTTP status rather than browser JSON exception',async()=>{
+  await assert.rejects(investigate('event',{onEvent:()=>{},fetcher:async()=>new Response('',{status:500})}),error=>{
+    assert.match(error.message,/HTTP 500/);assert.match(error.message,/backend is running/);
+    assert.doesNotMatch(error.message,/Unexpected end/);return true;
+  });
+  await assert.rejects(readInvestigationStream(sse(['event: tool\ndata: {"private":"secret"\n\n']),()=>{}),error=>{
+    assert.match(error.message,/incomplete or unreadable frame/);assert.doesNotMatch(error.message,/secret/);return true;
+  });
+});
 test('adaptive stream retains authentication and cancellation on same request',async()=>{
   const final={status:'completed',report:{summary:'Review',findings:[],recommendations:[],limitations:[]},events:[],tool_history:[],verification:{results:[]}};
   const controller=new AbortController();

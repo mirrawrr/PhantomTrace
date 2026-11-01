@@ -62,7 +62,7 @@ test('shows parser validation errors', async () => {
 });
 
 test('does not display provider error bodies', async () => {
-  await assert.rejects(investigate('event',{fetcher:async()=>({ok:false,status:502,json:async()=>({detail:'sensitive-provider-message'})})}),error=>!error.message.includes('sensitive-provider-message') && error.message.includes('configuration'));
+  await assert.rejects(investigate('event',{fetcher:async()=>({ok:false,status:502,json:async()=>({detail:'sensitive-provider-message'})})}),error=>!error.message.includes('sensitive-provider-message') && error.message.includes('HTTP 502'));
 });
 
 test('handles non-JSON and incomplete successful responses', async () => {

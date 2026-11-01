@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { investigate, MAX_LOG_LENGTH } from './api.mjs';
+import { investigate, MAX_LOG_LENGTH, readJsonResponse } from './api.mjs';
 import './styles.css';
 import scenarios from './scenarios.json';
 import recordedRun from './recorded-run.json';
@@ -56,7 +56,7 @@ function App() {
     try {
       const response = await fetch('/api/testimony/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav', ...(authorization ? { Authorization: authorization } : {}) }, body: file });
       if (!response.ok) throw new Error(response.status === 401 ? 'Enter demo credentials before transcribing.' : response.status === 429 ? 'Live demo allowance reached. Enter testimony as text instead.' : 'Transcription unavailable. Use mono 16-bit PCM WAV at 16 or 24 kHz, up to 60 seconds, or type the statement.');
-      const data = await response.json(); setWitness(data.transcript); setVoiceNotice(data.notice);
+      const data = await readJsonResponse(response); setWitness(data.transcript); setVoiceNotice(data.notice);
     } catch (err) { setError(err.message); } finally { setVoiceBusy(false); }
   }
 
@@ -70,7 +70,7 @@ function App() {
       const response = await fetch('/api/investigate/testimony', { method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
         body: JSON.stringify({ logs, changes, witness_statement: witness }) });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
       if (!response.ok) {
         const codes = new Set(['budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_schema_invalid','claim_check_failed','model_output_limit','model_incomplete','quote_source_mismatch']);
         const code = codes.has(data.detail?.code) ? data.detail.code : `HTTP ${response.status}`;
