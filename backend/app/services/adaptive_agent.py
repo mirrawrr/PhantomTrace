@@ -374,7 +374,9 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10,
     workspace = EvidenceWorkspace(request)
     if on_event:
         on_event('workspace', {'events': workspace.events})
-    client = client if client is not None else get_meta_client()
+    # A reasoning/tool-selection turn can take longer than the legacy 30s wait.
+    # Do not silently retry a timed-out paid request, including in local tests.
+    client = client if client is not None else get_meta_client(timeout=90.0, max_retries=0)
     correlation = correlate_events(workspace.events)
     overview = {"event_count": len(workspace.events),
                 "event_types": dict(Counter(e["event_type"] for e in workspace.events)),

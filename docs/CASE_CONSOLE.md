@@ -89,3 +89,7 @@ reviewed merge and manual deployment.
 ## Provider HTTP diagnostics
 
 A local streamed run returned `provider_http_error`; its original status and cause were not retained. Failures now include a numeric HTTP status and allowlisted provider code/type/parameter labels, when present. Raw provider messages, headers, request URLs and evidence are not included. The browser also filters those fields before displaying them. No automatic retry or budget increase is introduced. Capture the new safe code after one explicit rerun before choosing a fix.
+
+## Adaptive provider wait
+
+A subsequent local run returned `provider_timeout`, distinct from the earlier HTTP failure. Adaptive investigations now allow 90 seconds per provider request instead of the shared legacy 30 seconds, with SDK automatic retries disabled in both local and hosted adaptive mode. The timeout was not proven to be the original HTTP failure cause. This is a per-request wait, not a 90-second whole-investigation deadline; tool-turn and dollar limits remain unchanged. Other legacy callers retain their prior defaults. Validate with one explicit live run; do not repeatedly retry failures or increase spending limits to hide a provider problem.

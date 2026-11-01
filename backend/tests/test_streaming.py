@@ -3,6 +3,8 @@ import unittest
 import httpx
 from openai import APIStatusError
 import tempfile
+import os
+from unittest.mock import patch
 from pathlib import Path
 
 from app.investigation_stream import investigation_events
@@ -13,6 +15,20 @@ from test_investigation_agent import call, response, client_for
 
 
 class TestStreaming(unittest.TestCase):
+    def test_adaptive_client_uses_longer_wait_without_automatic_retry(self):
+        client=client_for(response([call('inspect_events',json.dumps({
+            'event_ids':['AMB001'], 'purpose':'Inspect permission evidence'}))]),
+            response(report=report(finding('AMB001'))))
+        with patch('app.services.adaptive_agent.get_meta_client',return_value=client) as factory:
+            investigate_adaptive(request('ambiguous'))
+            factory.assert_called_once_with(timeout=90.0,max_retries=0)
+        from app.services.meta_ai import get_meta_client
+        with patch.dict(os.environ,{'MODEL_API_KEY':'unit-test-not-live','DEMO_ENFORCE_BUDGET':'false'}), \
+                patch('app.services.meta_ai.OpenAI') as constructor:
+            get_meta_client(timeout=90.0,max_retries=0)
+            self.assertEqual(constructor.call_args.kwargs['timeout'],90.0)
+            self.assertEqual(constructor.call_args.kwargs['max_retries'],0)
+
     def test_provider_status_is_diagnostic_without_message_or_unknown_values(self):
         exc=APIStatusError('private provider body',response=httpx.Response(400,
             request=httpx.Request('POST','https://example.invalid')),
