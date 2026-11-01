@@ -56,7 +56,14 @@ export async function readInvestigationStream(response, onEvent) {
     const data = JSON.parse(payload);
     if (event === 'error') {
       const known = new Set(['invalid_logs','budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_output_limit','model_response_incomplete','tool_budget_exceeded','turn_budget_exceeded','investigation_failed']);
-      throw new Error(`Investigation did not finish (${known.has(data.code) ? data.code : 'stream_failed'}). Completed tool activity is retained; no final verdict is available.`);
+      const provider = data.provider || {};
+      const labels = new Set(['invalid_request_error','invalid_api_key','insufficient_quota','context_length_exceeded','model_not_found','rate_limit_exceeded','server_error','permission_denied','unsupported_parameter','invalid_parameter','invalid_value']);
+      const info = [known.has(data.code) ? data.code : 'stream_failed'];
+      if (Number.isInteger(provider.http_status) && provider.http_status >= 400 && provider.http_status <= 599) info.push(`HTTP ${provider.http_status}`);
+      if (labels.has(provider.provider_code)) info.push(provider.provider_code);
+      else if (labels.has(provider.provider_type)) info.push(provider.provider_type);
+      if (['model','input','instructions','previous_response_id','tools','max_output_tokens'].includes(provider.parameter)) info.push(`field: ${provider.parameter}`);
+      throw new Error(`Investigation did not finish (${info.join(' · ')}). Completed tool activity is retained; no final verdict is available.`);
     }
     if (event === 'result') finalResult = data;
     else onEvent(event, data);

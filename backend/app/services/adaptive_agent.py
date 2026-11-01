@@ -348,6 +348,28 @@ def provider_failure_code(exc):
     return 'provider_error'
 
 
+def safe_provider_details(exc):
+    """Only numeric status and known error labels; never provider message/body."""
+    if not isinstance(exc, APIStatusError):
+        return {}
+    details = {'http_status': exc.status_code} if type(exc.status_code) is int and 400 <= exc.status_code <= 599 else {}
+    body = getattr(exc, 'body', None)
+    if isinstance(body, dict):
+        error = body.get('error', body)
+        if isinstance(error, dict):
+            codes = {'invalid_request_error','invalid_api_key','insufficient_quota',
+                     'context_length_exceeded','model_not_found','rate_limit_exceeded',
+                     'server_error','permission_denied','unsupported_parameter',
+                     'invalid_parameter','invalid_value'}
+            for key in ('code','type'):
+                if isinstance(error.get(key), str) and error[key] in codes:
+                    details['provider_' + key] = error[key]
+            if isinstance(error.get('param'), str) and error['param'] in {
+                    'model','input','instructions','previous_response_id','tools','max_output_tokens'}:
+                details['parameter'] = error['param']
+    return details
+
+
 def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10, on_event=None):
     workspace = EvidenceWorkspace(request)
     if on_event:
@@ -384,7 +406,9 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10,
         try:
             response = client.responses.create(**kwargs)
         except OpenAIError as exc:
-            raise fail(provider_failure_code(exc), turn) from exc
+            failure = fail(provider_failure_code(exc), turn)
+            failure.diagnostics['provider'] = safe_provider_details(exc)
+            raise failure from exc
         previous_id = response.id
         status = getattr(response, 'status', None)
         if status in {'incomplete', 'failed', 'cancelled'}:

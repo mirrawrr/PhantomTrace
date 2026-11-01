@@ -32,7 +32,8 @@ def investigation_events(request, *, investigator=investigate_adaptive):
         except DemoBudgetError:
             emit('error', {'code': 'budget_unavailable', 'message': 'Live model budget unavailable or exhausted. Use recorded replay.'})
         except AdaptiveFailure as exc:
-            emit('error', {'code': exc.code, 'message': 'Investigation did not finish. Completed tool activity is retained; no final verdict is available.'})
+            emit('error', {'code': exc.code, 'provider': exc.diagnostics.get('provider', {}),
+                           'message': 'Investigation did not finish. Completed tool activity is retained; no final verdict is available.'})
         except (OpenAIError, RuntimeError, ValueError):
             emit('error', {'code': 'investigation_failed', 'message': 'Investigation did not finish. Check configuration or retry.'})
         except Exception:

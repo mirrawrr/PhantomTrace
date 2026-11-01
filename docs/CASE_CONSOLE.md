@@ -85,3 +85,7 @@ Render Free still has cold starts. Streaming does not make it always-on or make
 its ephemeral budget ledger durable. No paid upgrade or persistent disk has been
 provisioned by this change. A hosted SSE acceptance run is still needed after a
 reviewed merge and manual deployment.
+
+## Provider HTTP diagnostics
+
+A local streamed run returned `provider_http_error`; its original status and cause were not retained. Failures now include a numeric HTTP status and allowlisted provider code/type/parameter labels, when present. Raw provider messages, headers, request URLs and evidence are not included. The browser also filters those fields before displaying them. No automatic retry or budget increase is introduced. Capture the new safe code after one explicit rerun before choosing a fix.

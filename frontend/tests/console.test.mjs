@@ -30,6 +30,12 @@ test('SSE does not turn a truncated or failed stream into a report',async()=>{
   await assert.rejects(readInvestigationStream(sse(['event: tool\ndata: {"tool":"query_events"}\n\n']),()=>{}),/before the final report/);
   await assert.rejects(readInvestigationStream(sse(['event: error\ndata: {"code":"private-body","message":"secret"}\n\n']),()=>{}),/stream_failed/);
 });
+test('provider error shows only allowlisted status and labels',async()=>{
+  await assert.rejects(readInvestigationStream(sse(['event: error\ndata: '+JSON.stringify({code:'provider_http_error',provider:{http_status:400,provider_code:'context_length_exceeded',parameter:'input',message:'private-key'}})+'\n\n']),()=>{}),error=>{
+    assert.match(error.message,/HTTP 400/);assert.match(error.message,/context_length_exceeded/);
+    assert.match(error.message,/field: input/);assert.doesNotMatch(error.message,/private-key/);return true;
+  });
+});
 test('adaptive stream retains authentication and cancellation on same request',async()=>{
   const final={status:'completed',report:{summary:'Review',findings:[],recommendations:[],limitations:[]},events:[],tool_history:[],verification:{results:[]}};
   const controller=new AbortController();
