@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
 
-def get_meta_client():
+def get_meta_client(*, timeout=30.0, max_retries=None):
     api_key = os.getenv("MODEL_API_KEY")
 
     if not api_key:
@@ -22,8 +22,8 @@ def get_meta_client():
     client = OpenAI(
         api_key=api_key,
         base_url="https://api.meta.ai/v1",
-        timeout=30.0,
-        max_retries=0 if budgeted else 1,
+        timeout=timeout,
+        max_retries=0 if budgeted else (1 if max_retries is None else max_retries),
     )
     if budgeted:
         from app.model_budget import BudgetedResponses

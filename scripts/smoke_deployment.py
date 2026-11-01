@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 import re
+from time import monotonic
 
 
 def smoke(base_url):
@@ -63,7 +64,19 @@ def smoke(base_url):
     status, _, body = fetch('/api/evidence/analyze', authenticated=True, payload=payload)
     if status != 200 or json.loads(body).get('total_events') != 1:
         raise RuntimeError('Deterministic API check failed.')
-    print('PASS: health, demo login, dashboard, assets and deterministic API. No Meta calls made.')
+    arrivals = []
+    request = Request(base_url + '/api/stream-check', headers={'Authorization': basic,
+                                                            'Accept': 'text/event-stream'})
+    with opener.open(request, timeout=10) as response:
+        if 'text/event-stream' not in response.headers.get('Content-Type', ''):
+            raise RuntimeError('Stream connection check returned the wrong response type.')
+        for line in response:
+            if line.startswith(b'data: '):
+                ping = json.loads(line[6:])
+                arrivals.append((ping.get('index'), monotonic()))
+    if [index for index, _ in arrivals] != [1, 2, 3] or arrivals[-1][1] - arrivals[0][1] < 1:
+        raise RuntimeError('Stream connection check was incomplete or buffered.')
+    print('PASS: health, demo login, dashboard, assets, deterministic API and progressive server pings. No Meta calls made.')
 
 
 def main():

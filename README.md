@@ -127,3 +127,7 @@ learning-effectiveness benchmark.
 ### Judge access and witness testimony candidate
 
 See [judge readiness](docs/JUDGE_READINESS.md) for public UI/private live API access, recorded replay provenance, conservative request and dollar budgets, persistent disk requirements, and voice transcription acceptance checks. Voice claims remain unverified interpretations until compared with mapped evidence fields; a matching record is not authentication.
+
+### Case console
+
+The case console promotes the UTC timeline, verdict scoreboard and actual tool executions. Adaptive mode streams completed tool results; final findings appear only after validation. See [case console behavior and acceptance checks](docs/CASE_CONSOLE.md).

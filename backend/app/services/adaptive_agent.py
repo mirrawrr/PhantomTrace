@@ -348,9 +348,35 @@ def provider_failure_code(exc):
     return 'provider_error'
 
 
-def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10):
+def safe_provider_details(exc):
+    """Only numeric status and known error labels; never provider message/body."""
+    if not isinstance(exc, APIStatusError):
+        return {}
+    details = {'http_status': exc.status_code} if type(exc.status_code) is int and 400 <= exc.status_code <= 599 else {}
+    body = getattr(exc, 'body', None)
+    if isinstance(body, dict):
+        error = body.get('error', body)
+        if isinstance(error, dict):
+            codes = {'invalid_request_error','invalid_api_key','insufficient_quota',
+                     'context_length_exceeded','model_not_found','rate_limit_exceeded',
+                     'server_error','permission_denied','unsupported_parameter',
+                     'invalid_parameter','invalid_value'}
+            for key in ('code','type'):
+                if isinstance(error.get(key), str) and error[key] in codes:
+                    details['provider_' + key] = error[key]
+            if isinstance(error.get('param'), str) and error['param'] in {
+                    'model','input','instructions','previous_response_id','tools','max_output_tokens'}:
+                details['parameter'] = error['param']
+    return details
+
+
+def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10, on_event=None):
     workspace = EvidenceWorkspace(request)
-    client = client if client is not None else get_meta_client()
+    if on_event:
+        on_event('workspace', {'events': workspace.events})
+    # A reasoning/tool-selection turn can take longer than the legacy 30s wait.
+    # Do not silently retry a timed-out paid request, including in local tests.
+    client = client if client is not None else get_meta_client(timeout=90.0, max_retries=0)
     correlation = correlate_events(workspace.events)
     overview = {"event_count": len(workspace.events),
                 "event_types": dict(Counter(e["event_type"] for e in workspace.events)),
@@ -382,7 +408,9 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
         try:
             response = client.responses.create(**kwargs)
         except OpenAIError as exc:
-            raise fail(provider_failure_code(exc), turn) from exc
+            failure = fail(provider_failure_code(exc), turn)
+            failure.diagnostics['provider'] = safe_provider_details(exc)
+            raise failure from exc
         previous_id = response.id
         status = getattr(response, 'status', None)
         if status in {'incomplete', 'failed', 'cancelled'}:
@@ -450,6 +478,8 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                 result = {"error": str(exc)[:1200], "scope": "No tool action completed."}
             history.append({"call_id": call.call_id, "tool": call.name,
                             "purpose": purpose, "result": result})
+            if on_event:
+                on_event('tool', history[-1])
             inputs.append({"type": "function_call_output", "call_id": call.call_id,
                            "output": json.dumps(result)})
     raise fail('turn_budget_exceeded', max_turns)
