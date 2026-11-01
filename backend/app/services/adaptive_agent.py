@@ -348,8 +348,10 @@ def provider_failure_code(exc):
     return 'provider_error'
 
 
-def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10):
+def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10, on_event=None):
     workspace = EvidenceWorkspace(request)
+    if on_event:
+        on_event('workspace', {'events': workspace.events})
     client = client if client is not None else get_meta_client()
     correlation = correlate_events(workspace.events)
     overview = {"event_count": len(workspace.events),
@@ -450,6 +452,8 @@ def investigate_adaptive(request: AdaptiveRequest, *, client=None, max_turns=10)
                 result = {"error": str(exc)[:1200], "scope": "No tool action completed."}
             history.append({"call_id": call.call_id, "tool": call.name,
                             "purpose": purpose, "result": result})
+            if on_event:
+                on_event('tool', history[-1])
             inputs.append({"type": "function_call_output", "call_id": call.call_id,
                            "output": json.dumps(result)})
     raise fail('turn_budget_exceeded', max_turns)

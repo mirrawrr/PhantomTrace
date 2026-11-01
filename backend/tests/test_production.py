@@ -80,6 +80,16 @@ class TestProductionConfig(unittest.TestCase):
 
 
 class TestProductionHTTP(unittest.TestCase):
+    def test_api_stream_preserves_authentication_and_no_store(self):
+        with patch('app.investigation_stream.investigation_events',return_value=iter([
+                'event: result\ndata: {"status":"completed"}\n\n'])):
+            self.assertEqual(self.client.post('/api/investigate/adaptive/stream',json={'logs':'fixture'}).status_code,401)
+            response=self.client.post('/api/investigate/adaptive/stream',json={'logs':'fixture'},auth=self.auth)
+            self.assertEqual(response.status_code,200)
+            self.assertIn('text/event-stream',response.headers['content-type'])
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            self.assertIn('event: result',response.text)
+
     def setUp(self):
         self.directory=tempfile.TemporaryDirectory()
         root=Path(self.directory.name)

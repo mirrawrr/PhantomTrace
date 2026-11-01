@@ -115,6 +115,12 @@ def adaptive_investigate(request: AdaptiveRequest):
         raise HTTPException(status_code=502, detail="Adaptive investigation failed. Check configuration or retry.") from exc
 
 
+@app.post('/api/investigate/adaptive/stream')
+def adaptive_stream(request: AdaptiveRequest):
+    from app.investigation_stream import stream_investigation
+    return stream_investigation(request)
+
+
 @app.post('/api/investigate/testimony')
 def witness_only(request: AdaptiveRequest):
     from app.services.testimony import check_testimony, TestimonyFailure

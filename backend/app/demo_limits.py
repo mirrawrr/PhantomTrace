@@ -61,8 +61,14 @@ class DemoLimits:
                 await JSONResponse({'detail': error}, status_code=429,
                                    headers={'Retry-After': '3600'})(scope, receive, send)
                 return
+            delivered = False
             async def buffered_receive():
-                return {'type': 'http.request', 'body': bytes(body), 'more_body': False}
+                nonlocal delivered
+                if not delivered:
+                    delivered = True
+                    return {'type': 'http.request', 'body': bytes(body), 'more_body': False}
+                # Streaming responses must still be able to observe disconnects.
+                return await receive()
             await self.app(scope, buffered_receive, send)
             return
         await self.app(scope, receive, send)

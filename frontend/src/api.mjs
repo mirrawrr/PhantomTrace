@@ -10,15 +10,16 @@ export function validateLogs(logs) {
   if (logs.length > MAX_LOG_LENGTH) throw new Error('Logs must contain 20,000 characters or fewer.');
 }
 
-export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [], witnessStatement = '', authorization = '' } = {}) {
+export async function investigate(logs, { signal, fetcher = fetch, mode = 'adaptive', changes = [], witnessStatement = '', authorization = '', onEvent } = {}) {
   validateLogs(logs);
-  const response = await fetcher(mode === 'adaptive' ? '/api/investigate/adaptive' : '/api/investigate/agent', {
+  const streaming = mode === 'adaptive' && typeof onEvent === 'function';
+  const response = await fetcher(mode === 'adaptive' ? `/api/investigate/adaptive${streaming ? '/stream' : ''}` : '/api/investigate/agent', {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
     body: JSON.stringify(mode === 'adaptive' ? { logs, changes, ...(witnessStatement.trim() ? { witness_statement: witnessStatement } : {}) } : { logs }), signal,
   });
   let data;
-  try { data = await response.json(); }
-  catch { throw new Error('The backend returned an unreadable response. Check that FastAPI is running.'); }
+  try { data = streaming && response.ok ? await readInvestigationStream(response, onEvent) : await response.json(); }
+  catch (error) { if (streaming || error.name === 'AbortError') throw error; throw new Error('The backend returned an unreadable response. Check that FastAPI is running.'); }
   if (!response.ok) {
     if (response.status === 401) throw new Error('Live investigation requires demo credentials. Enter the testing credentials or use recorded replay.');
     if (response.status === 429) throw new Error('Live demo allowance reached. Use recorded replay or return later.');
@@ -38,6 +39,42 @@ export async function investigate(logs, { signal, fetcher = fetch, mode = 'adapt
     throw new Error('The backend response does not match the investigation format. Update the backend and retry.');
   }
   return data;
+}
+
+export async function readInvestigationStream(response, onEvent) {
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    throw new Error('Live activity stream unavailable. Refresh after deploying the matching backend.');
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', finalResult;
+  function consume(frame) {
+    const lines = frame.split('\n');
+    const event = lines.find(line => line.startsWith('event:'))?.slice(6).trim();
+    const payload = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+    if (!payload || !['workspace', 'tool', 'result', 'error'].includes(event)) return;
+    const data = JSON.parse(payload);
+    if (event === 'error') {
+      const known = new Set(['invalid_logs','budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_output_limit','model_response_incomplete','tool_budget_exceeded','turn_budget_exceeded','investigation_failed']);
+      throw new Error(`Investigation did not finish (${known.has(data.code) ? data.code : 'stream_failed'}). Completed tool activity is retained; no final verdict is available.`);
+    }
+    if (event === 'result') finalResult = data;
+    else onEvent(event, data);
+  }
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replaceAll('\r\n', '\n');
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        consume(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 2);
+      }
+      if (done) break;
+    }
+    if (!finalResult) throw new Error('Connection ended before the final report. Completed activity is retained; no final verdict is available.');
+    return finalResult;
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
 export function filterEvents(events, query, type) {
