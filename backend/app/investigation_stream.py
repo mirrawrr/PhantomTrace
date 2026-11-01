@@ -1,5 +1,7 @@
 """Completed tool executions as SSE. Never streams private model reasoning."""
 import json
+import asyncio
+from time import monotonic
 from queue import SimpleQueue
 from threading import Thread
 
@@ -53,4 +55,15 @@ def investigation_events(request, *, investigator=investigate_adaptive):
 
 def stream_investigation(request):
     return StreamingResponse(investigation_events(request), media_type='text/event-stream',
-        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+        headers={'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no'})
+
+
+async def connection_pings():
+    """Real server-clock diagnostics only. No evidence, model or tool execution."""
+    start = monotonic()
+    for index in range(1, 4):
+        if index > 1:
+            await asyncio.sleep(1)
+        yield 'event: ping\ndata: ' + json.dumps({
+            'index': index, 'elapsed_ms': round((monotonic() - start) * 1000),
+            'scope': 'Connection test only; no model calls.'}) + '\n\n'

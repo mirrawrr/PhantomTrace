@@ -45,11 +45,13 @@ class DemoAccess:
 
         async def private_send(message):
             if message['type'] == 'http.response.start':
+                is_stream = any(key.lower() == b'content-type' and b'text/event-stream' in value
+                                for key, value in message.get('headers', []))
                 headers = [(key, value) for key, value in message.get('headers', [])
                            if key.lower() not in {b'cache-control', b'x-content-type-options',
                                                   b'referrer-policy', b'x-frame-options'}]
                 message = {**message, 'headers': headers + [
-                    (b'cache-control', b'no-store'),
+                    (b'cache-control', b'no-store, no-transform' if is_stream else b'no-store'),
                     (b'x-content-type-options', b'nosniff'),
                     (b'referrer-policy', b'no-referrer'),
                     (b'x-frame-options', b'DENY'),

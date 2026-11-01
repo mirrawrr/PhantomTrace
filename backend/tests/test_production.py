@@ -87,7 +87,7 @@ class TestProductionHTTP(unittest.TestCase):
             response=self.client.post('/api/investigate/adaptive/stream',json={'logs':'fixture'},auth=self.auth)
             self.assertEqual(response.status_code,200)
             self.assertIn('text/event-stream',response.headers['content-type'])
-            self.assertEqual(response.headers['cache-control'],'no-store')
+            self.assertEqual(response.headers['cache-control'],'no-store, no-transform')
             self.assertIn('event: result',response.text)
 
     def setUp(self):

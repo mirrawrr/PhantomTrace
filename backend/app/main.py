@@ -121,6 +121,14 @@ def adaptive_stream(request: AdaptiveRequest):
     return stream_investigation(request)
 
 
+@app.get('/api/stream-check')
+def check_stream_connection():
+    from app.investigation_stream import connection_pings
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(connection_pings(), media_type='text/event-stream',
+        headers={'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no'})
+
+
 @app.post('/api/investigate/testimony')
 def witness_only(request: AdaptiveRequest):
     from app.services.testimony import check_testimony, TestimonyFailure

@@ -97,3 +97,26 @@ A subsequent local run returned `provider_timeout`, distinct from the earlier HT
 ## Empty or interrupted backend responses
 
 The local user log shows the SSE request began with HTTP 200 and later Uvicorn shut down; the backend is currently stopped in that supplied log. A 200 stream response does not establish completion. Empty/non-JSON HTTP responses now show their status without exposing their body or the raw browser JSON exception. Malformed stream frames retain prior activity and cannot produce a final verdict. Restart Uvicorn and keep its terminal open for acceptance testing. The sequence does not prove which event caused the earlier provider HTTP error or timeout.
+
+## Unbilled delivery check
+
+The first completed local case-console run took 117.824 seconds and produced nine
+events, four findings, six tools and zero report repairs. The user observed all
+tool entries at once, so browser streaming acceptance has **not** passed.
+
+Open Evidence intake → Live connection diagnostics → Test live connection. Three
+real server-clock pings are sent one second apart through `/api/stream-check`.
+The browser displays server and arrival elapsed times using the same frame reader
+as investigations. These are explicitly connection diagnostics, not model/tool
+activity. There are no Meta calls. Production access still requires demo credentials.
+
+If arrivals are grouped within 250ms despite server pings spanning two seconds,
+the test reports buffering; arrivals spanning at least one second report progressive
+delivery. Intermediate timing is inconclusive. This diagnoses the current path,
+not every network condition. Try the same unbilled test in a normal Chrome/Edge
+tab and compare with VS Code's embedded browser before repeating a billed run.
+
+SSE routes request no-transform and no buffering; those headers are hints, not
+guarantees. Production middleware preserves the no-transform header. The Docker
+smoke test now measures real ping arrival intervals without using a model. A
+passing container test does not establish browser/proxy behavior.

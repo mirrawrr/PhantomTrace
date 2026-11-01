@@ -23,7 +23,7 @@ export async function investigate(logs, { signal, fetcher = fetch, mode = 'adapt
   validateLogs(logs);
   const streaming = mode === 'adaptive' && typeof onEvent === 'function';
   const response = await fetcher(mode === 'adaptive' ? `/api/investigate/adaptive${streaming ? '/stream' : ''}` : '/api/investigate/agent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(streaming ? {Accept:'text/event-stream'} : {}), ...(authorization ? { Authorization: authorization } : {}) },
     body: JSON.stringify(mode === 'adaptive' ? { logs, changes, ...(witnessStatement.trim() ? { witness_statement: witnessStatement } : {}) } : { logs }), signal,
   });
   const data = streaming && response.ok ? await readInvestigationStream(response, onEvent) : await readJsonResponse(response);
@@ -48,22 +48,43 @@ export async function investigate(logs, { signal, fetcher = fetch, mode = 'adapt
   return data;
 }
 
-export async function readInvestigationStream(response, onEvent) {
+export async function readEventStream(response, onFrame) {
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
     throw new Error('Live activity stream unavailable. Refresh after deploying the matching backend.');
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '', finalResult;
+  let buffer = '';
   function consume(frame) {
     const lines = frame.split('\n');
     const event = lines.find(line => line.startsWith('event:'))?.slice(6).trim();
     const payload = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-    if (!payload || !['workspace', 'tool', 'result', 'error'].includes(event)) return;
+    if (!payload || !event) return;
     let data;
     try { data = JSON.parse(payload); }
     catch { throw new Error('The activity stream contained an incomplete or unreadable frame. Completed activity is retained; no final verdict is available.'); }
     if (!data || typeof data !== 'object') throw new Error('The activity stream returned an invalid frame. No final verdict is available.');
+    onFrame(event, data);
+  }
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replaceAll('\r\n', '\n');
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        consume(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 2);
+      }
+      if (done) break;
+    }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+}
+
+
+export async function readInvestigationStream(response, onEvent) {
+  let finalResult;
+  await readEventStream(response, (event, data) => {
+    if (!['workspace','tool','result','error'].includes(event)) return;
     if (event === 'error') {
       const known = new Set(['invalid_logs','budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_output_limit','model_response_incomplete','tool_budget_exceeded','turn_budget_exceeded','investigation_failed']);
       const provider = data.provider || {};
@@ -77,21 +98,24 @@ export async function readInvestigationStream(response, onEvent) {
     }
     if (event === 'result') finalResult = data;
     else onEvent(event, data);
-  }
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done });
-      buffer = buffer.replaceAll('\r\n', '\n');
-      let boundary;
-      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-        consume(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 2);
-      }
-      if (done) break;
-    }
-    if (!finalResult) throw new Error('Connection ended before the final report. Completed activity is retained; no final verdict is available.');
-    return finalResult;
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  });
+  if (!finalResult) throw new Error('Connection ended before the final report. Completed activity is retained; no final verdict is available.');
+  return finalResult;
+}
+
+export async function checkLiveConnection({ authorization = '', onPing, fetcher = fetch, clock = () => performance.now() } = {}) {
+  const start = clock();
+  const received = [];
+  const response = await fetcher('/api/stream-check', { headers: { Accept:'text/event-stream', ...(authorization ? { Authorization:authorization } : {}) } });
+  if (!response.ok) throw new Error(`Connection check failed (HTTP ${response.status}). Check the backend and demo credentials.`);
+  await readEventStream(response, (event, data) => {
+    if (event !== 'ping' || !Number.isInteger(data.index) || !Number.isFinite(data.elapsed_ms)) return;
+    const ping = { index:data.index, serverMs:data.elapsed_ms, arrivalMs:Math.round(clock()-start) };
+    received.push(ping); onPing?.(ping);
+  });
+  if (received.length !== 3 || received.some((p,i)=>p.index!==i+1)) throw new Error('Connection check ended without all three server pings.');
+  const gap = received[2].arrivalMs-received[0].arrivalMs;
+  return { state:gap >= 1000 ? 'progressive' : gap < 250 ? 'buffered' : 'inconclusive', pings:received };
 }
 
 export function filterEvents(events, query, type) {

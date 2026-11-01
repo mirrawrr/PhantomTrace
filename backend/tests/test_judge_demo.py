@@ -86,7 +86,7 @@ class TestJudgeDemo(unittest.TestCase):
         app = DemoAccess(downstream, 'demo', 'test-private-password', public_ui=True)
         for path, method, expected in [('/', 'GET', 200), ('/assets/main.js', 'GET', 200),
               ('/api/investigate/adaptive', 'POST', 401), ('/docs', 'GET', 401),
-              ('/api/testimony/transcribe', 'POST', 401), ('/', 'POST', 401)]:
+              ('/api/testimony/transcribe', 'POST', 401), ('/api/stream-check', 'GET', 401), ('/', 'POST', 401)]:
             messages = []
             async def send(message):
                 messages.append(message)

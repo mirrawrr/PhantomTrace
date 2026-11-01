@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { investigate, MAX_LOG_LENGTH, readJsonResponse } from './api.mjs';
+import { investigate, MAX_LOG_LENGTH, readJsonResponse, checkLiveConnection } from './api.mjs';
 import './styles.css';
 import scenarios from './scenarios.json';
 import recordedRun from './recorded-run.json';
 import CaseConsole, { WitnessPanel } from './CaseConsole.jsx';
 
 function App() {
+  const [connectionPings, setConnectionPings] = useState([]);
+  const [connectionResult, setConnectionResult] = useState('');
+  const [checkingConnection, setCheckingConnection] = useState(false);
   const [intakeOpen, setIntakeOpen] = useState(true);
   const [liveEvents, setLiveEvents] = useState([]);
   const [liveTools, setLiveTools] = useState([]);
@@ -41,6 +44,15 @@ function App() {
   }, []);
 
   const authorization = password ? 'Basic ' + btoa(String.fromCharCode(...new TextEncoder().encode(`${username}:${password}`))) : '';
+
+  async function testConnection() {
+    setCheckingConnection(true); setConnectionPings([]); setConnectionResult('');
+    try {
+      const check = await checkLiveConnection({ authorization, onPing: ping => setConnectionPings(items => [...items,ping]) });
+      setConnectionResult(check.state === 'progressive' ? 'Progressive delivery detected. No model calls made.' : check.state === 'buffered' ? 'Pings arrived together: this connection appears buffered. Open this same local URL in Chrome or Edge and repeat this free test.' : 'Delivery timing is inconclusive. Repeat this free test in Chrome or Edge.');
+    } catch (err) { setConnectionResult(err instanceof TypeError ? 'Cannot reach the backend. Keep Uvicorn and Vite running.' : err.message); }
+    finally { setCheckingConnection(false); }
+  }
 
   function replay() {
     setWitnessReview(null); setWitnessError(''); setResult(structuredClone(recordedRun)); setLogs(recordedRun.events.map(e => e.raw).join('\n'));
@@ -139,6 +151,7 @@ function App() {
     <main id="main">
       <section className="case-heading"><div><p className="eyebrow">FOLLOW EVIDENCE. CHALLENGE THE STORY.</p><h1 ref={resultHeading} tabIndex={-1}>{busy ? 'INVESTIGATION ACTIVE' : result ? 'CASE / EVIDENCE CONNECTED' : witnessReview ? 'WITNESS / EVIDENCE CHECK' : 'YOUR NEXT CASE STARTS HERE'}</h1></div><div className="case-controls">{busy && <button type="button" className="cancel" onClick={() => active.current?.abort()}>Cancel request</button>}{result && <button type="button" className="secondary" onClick={download}>↓ Export JSON</button>}<span className="model-tag">MUSE SPARK / HUMAN REVIEW</span></div></section>
       <details className="intake-shell panel" open={intakeOpen} onToggle={e => setIntakeOpen(e.currentTarget.open)}><summary><span>01 / EVIDENCE INTAKE</span><span className="intake-meta">{busy ? 'RUNNING' : `${logs.split('\n').filter(line => line.trim()).length} INPUT LINES`} · {mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED PIPELINE'} · {intakeOpen ? 'COLLAPSE −' : 'EDIT INPUTS +'}</span></summary><div className="intake-body"><div className="intake-heading"><div><h2>Bring the evidence.</h2><p>Use a synthetic case or your own permitted logs.</p></div><button type="button" className="secondary" disabled={busy || voiceBusy} onClick={() => { replay(); setIntakeOpen(false); }}>↻ Replay a recorded run</button></div><p className="helper">Replay opens an older five-event recording instantly after the page loads. No new AI call.</p>
+      <details className="connection-check panel"><summary>Live connection diagnostics · no AI calls</summary><p className="helper">Three real server pings, one second apart. This tests delivery through your current browser and proxy; these are not investigation steps.</p><button type="button" disabled={busy || checkingConnection} onClick={testConnection}>{checkingConnection ? 'Checking delivery…' : 'Test live connection'}</button><div role="status"><ol>{connectionPings.map(p => <li key={p.index} className="mono">Ping {p.index}: server +{(p.serverMs/1000).toFixed(2)}s / received +{(p.arrivalMs/1000).toFixed(2)}s</li>)}</ol>{connectionResult && <p>{connectionResult}</p>}</div></details>
           <form onSubmit={run}>
             <details><summary>Live demo credentials</summary><label className="field-label" htmlFor="demo-user">Username</label><input id="demo-user" value={username} autoComplete="username" onChange={e => setUsername(e.target.value)} /><label className="field-label" htmlFor="demo-password">Password</label><input id="demo-password" type="password" value={password} autoComplete="current-password" onChange={e => setPassword(e.target.value)} /><p className="format-help">Used only for this page session. Never include credentials in logs or exports.</p></details>
             <label className="field-label" htmlFor="investigation-mode">Investigation method</label>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { disposition, eventVerdict, nextSteps, returnedEventIds, toolSummary, verdictCounts } from '../src/console.mjs';
-import { investigate, readInvestigationStream } from '../src/api.mjs';
+import { investigate, readInvestigationStream, checkLiveConnection } from '../src/api.mjs';
 
 test('dispositions and event markers prioritize unresolved over record matches',()=>{
   const findings=[{disposition:'explained_by_record',event_ids:['A']},{disposition:'unresolved',event_ids:['A','B']},{event_ids:['C']}];
@@ -19,6 +19,16 @@ test('feed summaries use returned values and one next-actions source',()=>{
 function sse(chunks) {
   return new Response(new ReadableStream({start(controller){ chunks.forEach(chunk=>controller.enqueue(new TextEncoder().encode(chunk)));controller.close(); }}),{headers:{'Content-Type':'text/event-stream'}});
 }
+test('unbilled connection check distinguishes measured progressive and buffered delivery',async()=>{
+  const frames=[1,2,3].map((index)=>'event: ping\ndata: '+JSON.stringify({index,elapsed_ms:(index-1)*1000})+'\n\n');
+  for (const [times,state] of [[[0,10,1010,2010],'progressive'],[[0,2010,2011,2012],'buffered']]) {
+    const pings=[];
+    const check=await checkLiveConnection({clock:()=>times.shift(),onPing:p=>pings.push(p),authorization:'Basic fixture',fetcher:async(url,options)=>{
+      assert.equal(url,'/api/stream-check');assert.equal(options.headers.Authorization,'Basic fixture');return sse(frames);
+    }});
+    assert.equal(check.state,state);assert.equal(pings.length,3);
+  }
+});
 test('SSE parser handles split frames, UTF-8 and returns only actual events',async()=>{
   const seen=[];
   const output=await readInvestigationStream(sse(['event: work','space\ndata: {"events":[]}\n','\nevent: tool\ndata: {"tool":"inspect_events","purpose":"Check café"}\n\n','event: result\ndata: {"status":"completed"}\n\n']), (kind,data)=>seen.push([kind,data]));
