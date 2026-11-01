@@ -15,11 +15,46 @@ from starlette.responses import JSONResponse
 from app.demo_limits import DemoLimits
 from app.production import DemoAccess
 from app.services.adaptive_agent import AdaptiveRequest, EvidenceWorkspace
-from app.services.testimony import check_testimony, transcribe_audio
+from app.services.testimony import check_testimony, transcribe_audio, TestimonyFailure
 from app.model_budget import BudgetedResponses, reserve
 
 
 class TestJudgeDemo(unittest.TestCase):
+    def test_witness_only_does_not_rerun_investigation(self):
+        from app.main import witness_only
+        from fastapi import HTTPException
+        request=AdaptiveRequest(logs='E1 | 2026-10-28T02:12:00Z | LOGIN_SUCCESS | user=admin',
+                                witness_statement='This was approved.')
+        with patch('app.main.investigate_adaptive',side_effect=AssertionError('Do not rerun')), \
+                patch('app.services.testimony.check_testimony',return_value={'claims':[]}) as check:
+            self.assertEqual(witness_only(request)['status'],'completed')
+            check.assert_called_once()
+        with patch('app.services.testimony.check_testimony',side_effect=TestimonyFailure('quote_source_mismatch')):
+            with self.assertRaises(HTTPException) as caught:
+                witness_only(request)
+            self.assertEqual(caught.exception.detail['code'],'quote_source_mismatch')
+
+    def test_witness_failure_codes_do_not_expose_provider_or_statement(self):
+        workspace=EvidenceWorkspace(AdaptiveRequest(logs='E1 | 2026-10-28T02:12:00Z | LOGIN_SUCCESS | user=admin'))
+        response=SimpleNamespace(status='incomplete', incomplete_details=SimpleNamespace(reason='max_output_tokens'))
+        client=SimpleNamespace(responses=SimpleNamespace(create=lambda **kw: response))
+        with self.assertRaises(TestimonyFailure) as caught:
+            check_testimony('private statement',workspace,client=client)
+        self.assertEqual(caught.exception.code,'model_output_limit')
+        self.assertNotIn('private statement',str(caught.exception))
+        response.status='completed'
+        response.output_text='private malformed provider output'
+        with self.assertRaises(TestimonyFailure) as caught:
+            check_testimony('private statement',workspace,client=client)
+        self.assertEqual(caught.exception.code,'model_schema_invalid')
+        self.assertNotIn('private malformed',str(caught.exception))
+
+    def test_unmapped_approval_claim_can_omit_nullable_fields(self):
+        workspace=EvidenceWorkspace(AdaptiveRequest(logs='E1 | 2026-10-28T02:12:00Z | LOGIN_SUCCESS | user=admin'))
+        client=SimpleNamespace(responses=SimpleNamespace(create=lambda **kw: SimpleNamespace(
+            status='completed',output_text='{"claims":[{"quote":"This was approved."}]}')))
+        result=check_testimony('This was approved.',workspace,client=client)
+        self.assertEqual(result['claims'][0]['verdict'],'not_checkable')
     def test_dollar_budget_reserves_before_call_and_retains_failed_reservation(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {
                 'DEMO_USAGE_DB': str(Path(folder) / 'budget.db'), 'DEMO_BUDGET_USD': '1.50'}):

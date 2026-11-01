@@ -9,6 +9,9 @@ import { AdaptiveFindingDetails, HandoffPanel, FindingObservation } from './Adap
 const label = value => String(value).replaceAll('_', ' ').toLowerCase();
 
 function App() {
+  const [witnessChecking, setWitnessChecking] = useState(false);
+  const [witnessReview, setWitnessReview] = useState(null);
+  const [witnessError, setWitnessError] = useState('');
   const [witness, setWitness] = useState('');
   const [username, setUsername] = useState('demo');
   const [password, setPassword] = useState('');
@@ -48,7 +51,7 @@ function App() {
   const authorization = password ? 'Basic ' + btoa(String.fromCharCode(...new TextEncoder().encode(`${username}:${password}`))) : '';
 
   function replay() {
-    setResult(structuredClone(recordedRun)); setLogs(recordedRun.events.map(e => e.raw).join('\n'));
+    setWitnessReview(null); setWitnessError(''); setResult(structuredClone(recordedRun)); setLogs(recordedRun.events.map(e => e.raw).join('\n'));
     setSelected(null); setTab('report'); setQuery(''); setType('ALL'); setError('');
     requestAnimationFrame(() => resultHeading.current?.focus());
   }
@@ -63,6 +66,27 @@ function App() {
       if (!response.ok) throw new Error(response.status === 401 ? 'Enter demo credentials before transcribing.' : response.status === 429 ? 'Live demo allowance reached. Enter testimony as text instead.' : 'Transcription unavailable. Use mono 16-bit PCM WAV at 16 or 24 kHz, up to 60 seconds, or type the statement.');
       const data = await response.json(); setWitness(data.transcript); setVoiceNotice(data.notice);
     } catch (err) { setError(err.message); } finally { setVoiceBusy(false); }
+  }
+
+  async function checkWitnessOnly() {
+    if (!logs.trim() || !witness.trim()) { setWitnessError('Load security logs and add a witness statement first.'); return; }
+    let changes;
+    try { changes = JSON.parse(changeText); if (!Array.isArray(changes)) throw new Error(); }
+    catch { setWitnessError('Change records must be a JSON array.'); return; }
+    setWitnessChecking(true); setVoiceBusy(true); setWitnessError(''); setWitnessReview(null);
+    try {
+      const response = await fetch('/api/investigate/testimony', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+        body: JSON.stringify({ logs, changes, witness_statement: witness }) });
+      const data = await response.json();
+      if (!response.ok) {
+        const codes = new Set(['budget_unavailable','provider_timeout','provider_connection','provider_authentication','provider_rate_limit','provider_http_error','provider_error','model_schema_invalid','claim_check_failed','model_output_limit','model_incomplete','quote_source_mismatch']);
+        const code = codes.has(data.detail?.code) ? data.detail.code : `HTTP ${response.status}`;
+        throw new Error(`Witness-only check did not finish (${code}). Testimony remains unverified.`);
+      }
+      setWitnessReview(data.testimony);
+    } catch (err) { setWitnessError(err instanceof TypeError ? 'Cannot reach the backend.' : err.message); }
+    finally { setVoiceBusy(false); setWitnessChecking(false); }
   }
 
   async function run(event) {
@@ -80,7 +104,7 @@ function App() {
     }
     const controller = new AbortController();
     active.current = controller;
-    setBusy(true); setError(''); setResult(null); setSelected(null);
+    setBusy(true); setError(''); setWitnessReview(null); setWitnessError(''); setResult(null); setSelected(null);
     try {
       const data = await investigate(logs, { signal: controller.signal, mode, changes, witnessStatement: witness, authorization });
       setResult(data); setTab('report'); setQuery(''); setType('ALL');
@@ -132,6 +156,7 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  const testimony = witnessReview || result?.testimony;
   const events = result ? filterEvents(result.events, query, type) : [];
   const selectedEvent = result?.events.find(event => event.event_id === selected);
   const verified = result?.verification.verified_references ?? 0;
@@ -164,7 +189,7 @@ function App() {
             <div className="editor-footer"><span>{fileName || 'Paste pipe-separated events'}</span><span>{logs.length.toLocaleString()} / 20,000</span></div>
             <p className="format-help">One event per line. Include an ID, timestamp with timezone, event type and key=value fields.</p>
             {mode === 'adaptive' && <details className="change-intake"><summary>Supplied change records · JSON</summary><p className="format-help">Optional approval context. Only exact actor, target, role and time matches count. These records are not independently authenticated.</p><label className="sr-only" htmlFor="changes">Change records JSON</label><textarea id="changes" value={changeText} maxLength={20000} disabled={busy} onChange={event => setChangeText(event.target.value)} /></details>}
-            {mode === 'adaptive' && <details><summary>Witness statement · optional</summary><p className="format-help">Upload a synthetic voice note (mono PCM WAV, 16/24 kHz, up to 60 seconds) or type a statement. Audio is sent to Meta for transcription. Review its wording before starting. Testimony cannot establish identity or authorization.</p><input type="file" accept=".wav,audio/wav" disabled={busy || voiceBusy} onChange={transcribe} aria-label="Upload witness WAV" />{voiceBusy && <p role="status">Transcribing voice note…</p>}{voiceNotice && <p className="format-help">{voiceNotice}</p>}<label className="field-label" htmlFor="witness">Review witness statement</label><textarea id="witness" maxLength={4000} value={witness} disabled={busy || voiceBusy} onChange={e => setWitness(e.target.value)} /></details>}
+            {mode === 'adaptive' && <details><summary>Witness statement · optional</summary><p className="format-help">Upload a synthetic voice note (mono PCM WAV, 16/24 kHz, up to 60 seconds) or type a statement. Audio is sent to Meta for transcription. Review its wording before starting. Testimony cannot establish identity or authorization.</p><input type="file" accept=".wav,audio/wav" disabled={busy || voiceBusy} onChange={transcribe} aria-label="Upload witness WAV" />{voiceBusy && <p role="status">{witnessChecking ? 'Checking witness claims…' : 'Transcribing voice note…'}</p>}{voiceNotice && <p className="format-help">{voiceNotice}</p>}<label className="field-label" htmlFor="witness">Review witness statement</label><textarea id="witness" maxLength={4000} value={witness} disabled={busy || voiceBusy} onChange={e => setWitness(e.target.value)} /><button type="button" className="secondary" disabled={busy || voiceBusy || !logs.trim() || !witness.trim()} onClick={checkWitnessOnly}>Check witness only</button><p className="format-help">Checks the current statement against the current logs and supplied records. Makes one AI call; does not rerun the log investigation.</p>{witnessError && <p role="alert">{witnessError}</p>}</details>}
             <button className="primary" disabled={busy || voiceBusy || !logs.trim()} type="submit">{busy ? <><span className="spinner" />Investigating evidence…</> : <>Start investigation <span>↗</span></>}</button>
             {busy && <button type="button" className="cancel" onClick={() => active.current?.abort()}>Cancel request</button>}
             <p className="privacy">Logs are sent to Meta for analysis. Use synthetic data for your demo. API keys stay in your backend.</p>
@@ -176,8 +201,8 @@ function App() {
         <section className="results" aria-busy={busy}>
           <div className="result-title"><div><p className="eyebrow">INVESTIGATION OVERVIEW</p><h2 ref={resultHeading} tabIndex={-1}>{result ? 'The evidence, connected.' : busy ? 'Following the evidence…' : 'Your investigation starts here.'}</h2></div>{result && <button className="secondary" onClick={download}>↓ Export JSON</button>}</div>
           {result?.replay && <div className="panel replay-banner" role="status"><strong>RECORDED REPLAY · NOT A LIVE RUN</strong><p>{result.replay.label}. {result.replay.notice}</p></div>}
-          {result?.testimony_error && <p className="panel" role="status">{result.testimony_error}</p>}
-          {result?.testimony && <article className="panel"><p className="eyebrow">WITNESS CLAIM CHECK · NOT AN IDENTITY CHECK</p><blockquote>{result.testimony.statement}</blockquote><p>{result.testimony.notice}</p>{result.testimony.claims.length === 0 && <p>No checkable claims extracted. Testimony remains unverified.</p>}{result.testimony.claims.map((claim, i) => <div key={i}><h4>“{claim.quote}”</h4><p>{claim.verdict === 'matches_log_field' ? 'Mapped value matches log field' : claim.verdict === 'differs_from_log_field' ? 'Mapped value differs from log field' : 'Not checkable from these logs'}</p>{claim.event_id && <p>{claim.event_id} · {claim.field} · statement: {claim.value} · observed: {claim.observed ?? 'not recorded'}</p>}{claim.matching_change_ids.length > 0 && <p>Supplied record matches event: {claim.matching_change_ids.join(', ')}. Authenticity unverified.</p>}</div>)}</article>}
+          {!witnessReview && result?.testimony_error && <p className="panel" role="status">{result.testimony_error}</p>}
+          {testimony && <article className="panel"><p className="eyebrow">{witnessReview ? 'SEPARATE WITNESS CHECK · CURRENT SUBMITTED INPUTS' : 'WITNESS CLAIM CHECK · NOT AN IDENTITY CHECK'}</p><blockquote>{testimony.statement}</blockquote><p>{testimony.notice}</p>{testimony.claims.length === 0 && <p>No checkable claims extracted. Testimony remains unverified.</p>}{testimony.claims.map((claim, i) => <div key={i}><h4>“{claim.quote}”</h4><p>{claim.verdict === 'matches_log_field' ? 'Mapped value matches log field' : claim.verdict === 'differs_from_log_field' ? 'Mapped value differs from log field' : 'Not checkable from these logs'}</p>{claim.event_id && <p>{claim.event_id} · {claim.field} · statement: {claim.value} · observed: {claim.observed ?? 'not recorded'}</p>}{claim.matching_change_ids.length > 0 && <p>Supplied record matches event: {claim.matching_change_ids.join(', ')}. Authenticity unverified.</p>}</div>)}</article>}
           <div className="stats"><Stat title="Events parsed" value={result ? result.events.length : '—'} note="Source evidence" /><Stat title="Report findings" value={result ? result.report.findings.length : '—'} note="For analyst review" /><Stat title="References valid" value={result ? `${verified}/${result.verification.total_findings}` : '—'} note="Finding ID checks" /><Stat title="Tool calls" value={result ? result.tool_history.length : '—'} note="Recorded executions" /></div>
           {!result ? <div className="empty-state panel" role="status"><div className={`radar ${busy ? 'scanning' : ''}`} aria-hidden="true"><span /><i /><b>⌖</b></div><p className="eyebrow">{busy ? 'MUSE SPARK IS INVESTIGATING' : 'READY WHEN YOU ARE'}</p><h3>{busy ? 'Building a traceable investigation' : 'From raw logs to a clearer picture.'}</h3><p>{busy ? 'The agent is working with the evidence tools. Actual tool results will appear when the request completes.' : 'Add evidence on the left. PhantomTrace will connect events, surface findings and check the report’s references.'}</p><div className="empty-tags"><span>Evidence first</span><span>Traceable tool calls</span><span>Human review</span></div></div> : <>
             <div className="tabbar" onKeyDown={handleTabs} role="tablist" aria-label="Investigation views">{[['report', 'Findings'], ['timeline', 'Event timeline'], ['tools', 'Tool activity']].map(([id, text]) => <button key={id} id={`tab-${id}`} type="button" role="tab" tabIndex={tab === id ? 0 : -1} aria-selected={tab === id} aria-controls={`view-${id}`} onClick={() => setTab(id)}>{text}<span>{id === 'report' ? result.report.findings.length : id === 'timeline' ? result.events.length : result.tool_history.length}</span></button>)}</div>

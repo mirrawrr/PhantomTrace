@@ -104,3 +104,24 @@ all judges have access to it? Is there a preferred access method or availability
 window for November 5–9?”
 
 Send in Discord #questions today. No Discord message has been sent by this change.
+
+## Witness-check diagnostics and separate retry
+
+The first user live attempt completed the log investigation but returned the
+generic witness-check failure. Its original cause is unknown. Do not describe
+that run as successful end-to-end voice verification.
+
+Witness failures now report allowlisted categories such as `model_output_limit`,
+`model_schema_invalid`, `quote_source_mismatch`, provider timeout or budget
+unavailable. No raw provider response, key or testimony is included in error
+messages. Extraction has a 4,000-token output allowance; nullable unmapped claim
+fields may be omitted. Exact quotation checking remains enforced. These changes
+do not establish which failure occurred in the first run.
+
+Use **Check witness only** under the statement box to submit the current logs,
+change records and statement without repeating the full investigation. This is
+one additional paid Spark request and no new transcription. Its separate panel
+identifies current submitted inputs; it does not modify the log report. The API
+is `/api/investigate/testimony`, protected by the same authentication, request
+limits and dollar reservations as other live investigation endpoints. No automatic
+retry occurs. Retain the safe failure code if it fails again.

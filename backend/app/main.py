@@ -97,10 +97,13 @@ def adaptive_investigate(request: AdaptiveRequest):
     try:
         result = investigate_adaptive(request)
         if request.witness_statement.strip():
-            from app.services.testimony import check_testimony
+            from app.services.testimony import check_testimony, TestimonyFailure
             from app.services.adaptive_agent import EvidenceWorkspace
             try:
                 result['testimony'] = check_testimony(request.witness_statement, EvidenceWorkspace(request))
+            except TestimonyFailure as exc:
+                result['testimony_error_code'] = exc.code
+                result['testimony_error'] = 'Witness claim check did not finish (' + exc.code + '). The log investigation is available; testimony remains unverified.'
             except (OpenAIError, RuntimeError, ValueError):
                 result['testimony_error'] = 'Witness claim check did not finish. The log investigation is available; testimony remains unverified.'
         return result
@@ -110,6 +113,22 @@ def adaptive_investigate(request: AdaptiveRequest):
         raise HTTPException(status_code=429, detail='Live demo model budget unavailable or exhausted. Use recorded replay.') from exc
     except (OpenAIError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Adaptive investigation failed. Check configuration or retry.") from exc
+
+
+@app.post('/api/investigate/testimony')
+def witness_only(request: AdaptiveRequest):
+    from app.services.testimony import check_testimony, TestimonyFailure
+    from app.services.adaptive_agent import EvidenceWorkspace
+    if not request.witness_statement.strip():
+        raise HTTPException(status_code=422, detail='Add a witness statement first.')
+    try:
+        return {'status': 'completed', 'testimony': check_testimony(
+            request.witness_statement, EvidenceWorkspace(request))}
+    except InvalidLogs as exc:
+        raise HTTPException(status_code=422, detail='Check source log format.') from exc
+    except TestimonyFailure as exc:
+        raise HTTPException(status_code=502, detail={'code': exc.code,
+            'message': 'Witness check did not finish; testimony remains unverified.'}) from exc
 
 
 @app.post('/api/testimony/transcribe')
