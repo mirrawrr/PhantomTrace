@@ -14,7 +14,7 @@ export default function CaseConsole({ result, liveEvents, liveTools, busy }) {
   const [activeEvent, setActiveEvent] = useState(null);
   const [query, setQuery] = useState('');
   const [eventType, setEventType] = useState('ALL');
-  useEffect(() => { setActiveFinding(null); setActiveEvent(null); }, [result]);
+  useEffect(() => { setActiveFinding(null); setActiveEvent(null); setQuery(''); setEventType('ALL'); }, [result]);
   const findings = result?.report.findings || [];
   const events = [...(result?.events || liveEvents)].sort((a,b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   const visibleEvents = filterEvents(events, query, eventType);
