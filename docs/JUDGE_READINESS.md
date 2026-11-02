@@ -1,6 +1,10 @@
 # Judge access and witness evidence
 
-This upgrade is a candidate for live acceptance testing, not a tested winning claim.
+The developer has now confirmed local and hosted case-console streaming, source
+inspection and witness comparisons. See [live checks](LIVE_CHECKS.md) for scope
+and retained failures. Paid hosting/persistent budget storage, final recording
+and submission still require owner completion: [release checklist](RELEASE_CHECKLIST.md).
+The earlier candidate-stage notes below are retained as development history.
 
 ## Access
 

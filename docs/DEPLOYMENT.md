@@ -1,7 +1,9 @@
 # Deploy the hackathon demo
 
-This branch prepares deployment; it does not mean a hosted service is already
-live. The normal two-terminal development workflow continues to work.
+The hosted demo is live at https://phantomtrace-demo.onrender.com/ and its case
+console streaming was confirmed by the developer. The normal two-terminal
+development workflow continues to work. For final paid hosting and persistence,
+use [the release checklist](RELEASE_CHECKLIST.md); those settings remain unconfirmed.
 
 ## One service, one origin
 
@@ -12,8 +14,11 @@ the same origin. Vite is not a public production server and its development prox
 is not used. The entry point respects `PORT` (default 8000).
 
 The hosted entry point requires `MODEL_API_KEY`, `DEMO_USERNAME` and a private
-`DEMO_PASSWORD` of at least 16 characters. All paths, including model endpoints,
-assets and API docs, require HTTP Basic login except GET/HEAD `/health`. That
+`DEMO_PASSWORD` of at least 16 characters. With `DEMO_PUBLIC_UI=true`, GET/HEAD `/`
+and compiled `/assets/` are public; live APIs and API docs still require HTTP
+Basic credentials. The dashboard's credential form holds them only in page memory.
+With public UI disabled, the dashboard also requires login. GET/HEAD `/health`
+is always exempt from demo login. That
 endpoint checks liveness only, not Meta credentials, billing or model readiness.
 Use HTTPS for every public deployment. Responses are marked `no-store`; source
 logs and reports are not persisted by this application.
@@ -42,7 +47,9 @@ After the deployment PR is merged:
    send it in chat, commit it, add a frontend variable or make it a Docker ARG.
 5. Create the service and wait for its build/deploy result. In its environment
    settings, retrieve the generated `DEMO_PASSWORD` privately; username is `demo`.
-6. Open the returned HTTPS service URL. A browser login prompt should appear.
+6. Open the returned HTTPS URL. With the template's public-UI setting, the page
+   and labelled replay open without a login prompt. Enter demo credentials in
+   Evidence intake for live API calls; never enter the Meta key in the dashboard.
 7. Confirm unauthenticated `/health` works, then run the unbilled smoke check below.
 8. Run one synthetic adaptive investigation on the hosted URL and review the
    source observations/handoff. This step is billed by Meta and is separate from
@@ -94,7 +101,8 @@ In another terminal at the repository root, set `DEMO_USERNAME` and set
 ```
 
 Use `http://127.0.0.1:8000` for a local check. The script verifies health, rejected
-anonymous access, authenticated HTML/assets and the deterministic evidence API.
+anonymous API access, dashboard/assets, the deterministic evidence API and
+progressive delivery of three real server pings.
 It does not call Meta, print credentials or follow redirects that could forward
 them to another destination. Use the service's exact origin, not a URL containing
 credentials. A PASS is infrastructure evidence only; perform the live synthetic

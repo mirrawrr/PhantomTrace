@@ -1,5 +1,10 @@
 # Case console
 
+**November 3 status:** after the earlier diagnostic work recorded below, the
+developer confirmed progressive local and hosted tool activity followed by final
+verdicts. See [live checks](LIVE_CHECKS.md) for the exact scope and retained failures.
+The remaining release work is [hosting persistence, recording and submission](RELEASE_CHECKLIST.md).
+
 The console presents the evidence timeline and actual execution feed ahead of the
 long narrative. It preserves source inspection, filters, JSON export, witness
 checks and the labelled original recording. It changes no production credentials,
