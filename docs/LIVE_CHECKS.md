@@ -1,5 +1,8 @@
 # User-reported live checks
 
+This is a chronological development record. Earlier pending items refer to their
+stage, not the current status. See the November 3 update below for later acceptance.
+
 The user ran the adaptive dashboard with Muse Spark 1.3 and supplied report/tool
 output in the development conversation. These are individual synthetic-case runs,
 not a controlled benchmark or a measurement of student learning. Raw provider
@@ -65,3 +68,44 @@ that case. Runs span development revisions, are not independent held-out tests,
 and do not establish general reliability, learning outcomes or agent superiority.
 Retain the original three local evaluation JSON files. They have not been silently
 overwritten, deleted or added to a deployment image.
+
+## November 3 readiness update: console and witness acceptance
+
+The agent inspected the developer's local `phantomtrace-investigation.json`:
+completed adaptive mode, Muse Spark 1.3, nine events, four findings, six actual
+tool calls, 117.824 seconds, seven model turns, zero report repairs, 37,096 input
+and 10,386 output tokens. Structured checks passed. This was a real export,
+not the bundled recording. It is one public synthetic case, not a latency guarantee.
+
+The developer subsequently confirmed that the local timeline appeared before
+the verdict and tools arrived during the run. A free transport test measured
+server pings at 0.00/1.01/2.02 seconds and browser receipt at 0.11/1.12/2.13 seconds.
+That checks the tested browser/proxy path, not all future network conditions.
+
+After deploying the console, the developer supplied a hosted eight-call trace:
+source inspection, a full query, CHG-1042 matching EVT005, no supplied match for
+EVT008, further source inspection and a structured-check PASS. The developer
+explicitly confirmed progressive hosted entries followed by the final scoreboard.
+The final hosted JSON and its latency were not independently inspected by the
+agent. Do not substitute the earlier local run's duration for this hosted run.
+
+Hosted voice transcription and witness checks were also reported. The transcript
+misheard admin as “and mean”; target/role mappings were compared with source
+values, while approval remained uncheckable and actor identity was not established.
+A deliberately edited text statement naming trainee differed from source actor
+admin. Adding an instruction to ignore the logs did not override that comparison.
+These are individual acceptance examples, not a comprehensive robustness test.
+
+Later manual failures were retained: an initially generic witness-check failure,
+provider HTTP error with original status unavailable, provider timeout and an
+empty/incomplete response. A supplied terminal log showed Uvicorn subsequently
+stopped. That does not prove shutdown caused the earlier provider failures.
+Adaptive provider waits became 90 seconds per request with no automatic SDK retry;
+safe diagnostics and an unbilled stream check were added. These interventions do
+not establish a cause for every earlier failure.
+
+The historical eight-of-nine evaluation above remains scoped to its original
+set/revisions. It is not an updated completion rate for all later manual attempts.
+No real-world detection accuracy, learning gain, customer adoption or analyst
+time-saving result has been measured. Paid always-on hosting and persistent
+ledger enforcement remain unconfirmed at this update.

@@ -1,5 +1,9 @@
 # Three-minute PhantomTrace demo
 
+**November 3 recording update:** use [the final case-console and voice script](FINAL_DEMO_SCRIPT.md).
+The earlier plan below is retained as history; its non-streamed-interface wording
+no longer describes adaptive case-console mode.
+
 Use the actual app and clearly labelled synthetic evidence. This is a suggested
 script, not a claim that the project will win. Rehearse to three minutes. Never
 show login passwords, keys, billing details or confidential logs on screen.

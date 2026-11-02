@@ -1,5 +1,9 @@
 # PhantomTrace
-PhantomTrace is an AI-powered digital forensics investigation agent that analyses security logs, correlates evidence, reconstructs incident timelines, and generates verifiable forensic reports using Meta Muse Spark.
+PhantomTrace is an evidence-first investigation console for new analysts and small IT teams, using Meta Muse Spark and Muse Voice Transcribe. Source-linked findings and structured checks support human review; they do not certify narrative conclusions.
+
+**November 3 readiness update:** the [hosted demo](https://phantomtrace-demo.onrender.com/) is live. The developer confirmed progressive hosted tool activity, final verdicts, source inspection and witness comparisons. The UI/replay are public; paid live API calls require private demo credentials. Final hosting persistence, recording and submission remain owner tasks.
+
+Start with the [case console](docs/CASE_CONSOLE.md), [final recording script](docs/FINAL_DEMO_SCRIPT.md), [submission copy](docs/SUBMISSION_DRAFT.md) and [release checklist](docs/RELEASE_CHECKLIST.md). Earlier phase-specific notes below are retained for history; adaptive mode now streams completed tools and uses a 90-second per-provider-request wait with no automatic SDK retries. This is not a whole-investigation deadline or latency guarantee.
 
 ## Five-phase hackathon roadmap
 
@@ -9,7 +13,7 @@ PhantomTrace is an AI-powered digital forensics investigation agent that analyse
 | 2 | Log parser, event correlation, evidence reference verifier | Complete |
 | 3 | Bounded Muse Spark tool-calling investigation and execution history | Complete; original workflow live-tested |
 | 4 | React dashboard, findings, tool activity and interactive timeline | Complete; original workflow live-tested |
-| 5 | Integration testing, deployment and three-minute demo | Deployment package prepared; hosting and video pending |
+| 5 | Integration testing, deployment and three-minute demo | Hosted console works; final hosting/persistence choice, recording and submission pending |
 
 ## Run Phase 3
 
@@ -108,7 +112,7 @@ and timing checks, competing explanations and an analyst handoff. The original
 fixed pipeline remains selectable. See [the adaptive investigation guide](docs/ADAPTIVE_INVESTIGATION.md)
 for tools, evidence-check limits, five synthetic practice cases and the opt-in live
 evaluation. No winning outcome, real-world accuracy or learning improvement has
-been established. Deployment remains pending.
+been established. The hosted console is now live; see the readiness update above.
 
 ## Hosted demo and submission preparation
 
