@@ -1,6 +1,40 @@
 # PhantomTrace
 PhantomTrace is an AI-powered digital forensics investigation agent that analyses security logs, correlates evidence, reconstructs incident timelines, and generates verifiable forensic reports using Meta Muse Spark.
 
+## Try PhantomTrace
+
+**Recorded walkthrough:** Open the [hosted demo](https://phantomtrace-demo.onrender.com/) and click **Replay a recorded run**. The replay uses a saved investigation and works without an account or API key.
+
+**Live investigation:** Clone the repository and run the backend and frontend locally using your own Meta Model API key.
+
+```sh
+git clone https://github.com/mirrawrr/PhantomTrace.git
+cd PhantomTrace/backend
+python -m venv .venv
+```
+
+Activate the virtual environment (`.\.venv\Scripts\Activate.ps1` in Windows PowerShell or `source .venv/bin/activate` on macOS/Linux), then install the backend dependencies:
+
+```sh
+python -m pip install -r requirements.txt
+```
+
+In `backend`, copy `.env.example` to `.env` and set `MODEL_API_KEY` to your own Meta Model API key. Start the backend:
+
+```sh
+python -m uvicorn app.main:app --port 8000
+```
+
+In a second terminal, from the repository root, start the frontend:
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`, select **Adaptive investigation** and **First shift: maintenance or compromise?**, click **Load sample**, then click **Start investigation**. For a separate witness check, enter a statement and click **Check witness only**. Use the synthetic sample for both tests.
+
 ## Five-phase hackathon roadmap
 
 | Phase | Deliverable | Status |
@@ -9,7 +43,7 @@ PhantomTrace is an AI-powered digital forensics investigation agent that analyse
 | 2 | Log parser, event correlation, evidence reference verifier | Complete |
 | 3 | Bounded Muse Spark tool-calling investigation and execution history | Complete; original workflow live-tested |
 | 4 | React dashboard, findings, tool activity and interactive timeline | Complete; original workflow live-tested |
-| 5 | Integration testing, deployment and three-minute demo | Deployment package prepared; hosting and video pending |
+| 5 | Integration testing, deployment and three-minute demo | Hosted replay available; demo video recorded |
 
 ## Run Phase 3
 
